@@ -47,8 +47,9 @@ LABEL.update({"bayes_gauss_nre": "Bayes, Gaussian mixed effects, likelihood-free
               "iter_logistic_truth": "Iterated, logistic", "bayes_gauss_truth": "Bayes, exact likelihood",
               "bayes_gauss_nre_truth": "Bayes, likelihood-free (40k sims/block)",
               "bayes_gauss_nre_small_truth": "Bayes, likelihood-free (5k sims/block)",
-              "bb_logistic_ssa": "Iterated, logistic + Bayesian bootstrap"})
-COLOR.update({"bb_logistic_ssa": COLOR["bb_logistic"], "iter_logistic_truth": COLOR["iter_logistic"], "bayes_gauss_truth": COLOR["bayes_gauss"],
+              "bb_logistic_ssa": "Iterated, logistic + Bayesian bootstrap",
+              "iter_bins": "Iterated, logistic on counts", "bb_bins": "Iterated, logistic on counts + Bayesian bootstrap"})
+COLOR.update({"iter_bins": "#1baf7a", "bb_bins": "#8fd8b8", "bb_logistic_ssa": COLOR["bb_logistic"], "iter_logistic_truth": COLOR["iter_logistic"], "bayes_gauss_truth": COLOR["bayes_gauss"],
               "bayes_gauss_nre_truth": "#4d4d4d", "bayes_gauss_nre_small_truth": "#b0b0b0"})
 
 
@@ -355,7 +356,7 @@ if TRACK:
 # Each method stores S populations (posterior draws / bootstrap replicates; S = 1 for CMC). For every
 # quantity we take the population mean and the population sd (cell-to-cell spread) in each of them.
 BM = [m for m in ["iter_logistic", "bb_logistic", "bayes_gauss", "bayes_dpm", "bayes_dpm_nre"] if m in cfg["methods"]]
-BEX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") not in ("robustness", "ssa")
+BEX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") not in ("robustness", "ssa", "fish")
        and any((e, m) in by for m in BM if cfg["methods"][m]["kind"] in ("bootstrap", "bayes"))]
 SSA_M = [m for m in ["iter_logistic", "iter_mlp", "bb_logistic_ssa", "bayes_gauss", "bayes_gauss_nre"] if m in cfg["methods"]]
 SSA_EX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") == "ssa" and any(k[0] == e for k in by)]
@@ -563,6 +564,92 @@ if ROB:
         "\\begin{tabular}{llrrrrr}\n\\toprule\n"
         "setting & method & evaluations & $\\theta$ ED at start & $\\theta$ ED at end & mean covered & sd covered \\\\\n"
         "\\midrule\n" + "\n".join(lines) + "\n\\bottomrule\n\\end{tabular}\n")
+
+# ---- figure 10 + table: fish functional response (synthetic twins and real data)
+FEX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") == "fish" and any(k[0] == e for k in by)]
+if FEX:
+    VOR = np.log(5.0)  # log a above this: voracious (the two synthetic modes are at -2.2 and 5.7)
+    FM = [m for m in ["iter_logistic", "iter_bins", "iter_mlp", "bb_bins", "bayes_gauss", "bayes_dpm"]
+          if any((e, m) in by for e in FEX)]
+    fmodel = make_model("fish")
+
+    def fstats(P):  # P: (S, n, 2) populations -> per population: voracious fraction, mean and sd of log r
+        return (P[:, :, 0] > VOR).mean(1), P[:, :, 1].mean(1), P[:, :, 1].std(1)
+
+    def iv(x):
+        x = np.asarray(x)
+        if len(x) == 1:
+            return f"{x[0]:.2f}"
+        lo, md, hi = np.percentile(x, [2.5, 50, 97.5])
+        return f"{md:.2f} [{lo:.2f}, {hi:.2f}]"
+
+    lines = []
+    for e in FEX:
+        sd0 = 1
+        t = np.load(os.path.join(a.data, f"{e}_seed{sd0}.npz"))["truth"]
+        if len(t):
+            tv, tm, ts = fstats(t[None])
+            lines.append(f"{e.replace('_', ' ')} & true population & -- & {tv[0]:.2f} & {tm[0]:.2f} & {ts[0]:.2f} & -- \\\\")
+        for m in FM:
+            rs = by.get((e, m), [])
+            if not rs:
+                continue
+            P = np.load(os.path.join(a.fits, e, f"{m}_seed{rs[0]['seed']}.npz"))["pop_draws"].astype(float)
+            v, mr, sr = fstats(P)
+            ed = [r["final"].get("ed_theta") for r in rs]
+            ed = f"{np.mean(ed):.3f}" if ed[0] is not None else "--"
+            lines.append(f"{'' if len(t) else e.replace('_', ' ') if m == FM[0] else ''} & {LABEL[m]} & {ed} & {iv(v)} & {iv(mr)} & {iv(sr)} & "
+                         f"{np.mean([r['final']['seconds'] for r in rs]) / 60:.1f} \\\\")
+        lines[-1] += " \\addlinespace" if e != FEX[-1] else ""
+    open(os.path.join(a.out, "fish.tex"), "w").write(
+        "\\begin{tabular}{llrrrrr}\n\\toprule\nexample & method & $\\theta$ ED & voracious fraction & "
+        "mean $\\log r$ & sd $\\log r$ & minutes \\\\\n\\midrule\n" + "\n".join(lines) + "\n\\bottomrule\n\\end{tabular}\n")
+
+    SC = [m for m in ["iter_bins", "iter_mlp", "bayes_gauss", "bayes_dpm"] if m in FM]
+    fig, axes = plt.subplots(len(FEX), len(SC) + 2, figsize=(2.3 * (len(SC) + 2), 2.3 * len(FEX)), squeeze=False)
+    rng_f = np.random.default_rng(0)
+    for i, e in enumerate(FEX):
+        z = np.load(os.path.join(a.data, f"{e}_seed1.npz"))
+        t = z["truth"]
+        panels = [("true population", t if len(t) else None, "k")] + [
+            (LABEL[m], np.load(os.path.join(a.fits, e, f"{m}_seed1.npz"))["draws"] if (e, m) in by else None, COLOR[m]) for m in SC]
+        for k, (lab, d, col) in enumerate(panels):
+            ax = axes[i][k]
+            if d is None:
+                ax.axis("off")
+                continue
+            d = d[rng_f.choice(len(d), min(len(d), 1500), replace=False)]
+            ax.scatter(d[:, 0], d[:, 1], s=2, color=col, alpha=0.35, lw=0)
+            ax.axvline(VOR, color="k", lw=0.5, ls=":")
+            ax.set_xlim(fmodel.lower[0], fmodel.upper[0])
+            ax.set_ylim(fmodel.lower[1], fmodel.upper[1])
+            ax.set_title(lab, fontsize=6.5, pad=2)
+            ax.set_xlabel("log a", fontsize=7)
+            if k == 0 or (k == 1 and not len(t)):
+                ax.set_ylabel(f"{e.replace('_', ' ')}\nlog r", fontsize=7)
+        # posterior predictive: fraction of fish that eat every prey, by n0
+        ax = axes[i][-1]
+        n0s = np.array(fmodel.n0s)
+        full = [np.mean(z[f"block{j}"][:, 0] == n0) for j, n0 in enumerate(n0s)]
+        ax.plot(n0s, full, "ko", ms=4, label="data", zorder=5)
+        for m in SC:
+            if (e, m) not in by:
+                continue
+            d = np.load(os.path.join(a.fits, e, f"{m}_seed1.npz"))["draws"]
+            q = fmodel.simulate(d, rng_f)
+            ax.plot(n0s, (q == n0s[None, :]).mean(0), color=COLOR[m], lw=1.3, label=LABEL[m])
+        ax.set_xlabel("initial prey", fontsize=7)
+        ax.set_title("fraction eating all prey", fontsize=6.5, pad=2)
+        if i == 0:
+            ax.legend(fontsize=5.5, frameon=False)
+    for ax in axes.ravel():
+        ax.tick_params(labelsize=6, length=2)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+    fig.tight_layout()
+    fig.savefig(os.path.join(a.out, "fish.pdf"))
+    fig.savefig(os.path.join(a.out, "fish.png"), dpi=150)
+    plt.close(fig)
 
 # ---- figure 4: population mean +- sd across cells, truth vs methods, every parameter
 PM = [m for m in ["cmc_paper", "iter_logistic", "iter_mlp"] if m in METHODS]

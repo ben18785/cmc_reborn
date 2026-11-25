@@ -468,6 +468,81 @@ class FeedbackSSA(SSAModel):
         return out
 
 
+# --------------------------------------------------------------------------
+def _fr_pmf(n0, a, r, chunk=2000):
+    """pmf of prey eaten (0..n0) in a unit-length trial, from the master equation, for each
+    (a, r) pair. States: searching with i eaten (i = 0..n0), handling with i eaten."""
+    from scipy.linalg import expm
+
+    m = n0 + 1
+    i = np.arange(m)
+    out = np.empty((len(a), m))
+    for s in range(0, len(a), chunk):
+        aa, rr = a[s:s + chunk], r[s:s + chunk]
+        A = np.zeros((len(aa), 2 * m, 2 * m))
+        A[:, i, i] = -(n0 - i)[None, :] * aa[:, None]  # searching i -> handling i + 1
+        A[:, m + i[1:], i[:-1]] = (n0 - i[:-1])[None, :] * aa[:, None]
+        A[:, i[1:], m + i[1:]] = rr[:, None]  # handling i -> searching i
+        A[:, m + i[1:], m + i[1:]] = -rr[:, None]
+        p = expm(A)[:, :, 0]  # start: searching, none eaten
+        out[s:s + chunk] = np.clip(p[:, :m] + p[:, m:], 0.0, 1.0)
+    return out
+
+
+class FunctionalResponse(Model):
+    """Predator foraging trial (stickleback functional response; Newport et al. 2026). A fish
+    switches between searching, catching each of the n0 - i remaining prey at rate a, and
+    handling, which ends at rate r. A trial lasts one time unit and starts with the fish
+    searching. Each fish is observed once, at one initial prey number: one block per n0,
+    with one output (prey eaten).
+
+    Simulation is Gillespie (cheap: at most 2 n0 events). The exact likelihood needs a matrix
+    exponential of size 2(n0 + 1) for every fish and every parameter value.
+
+    Synthetic population (from the fitted mixture model of Newport et al.): a fraction
+    `vorac` of fish are voracious (very fast attack, log a ~ N(log 300, 0.3^2)), the rest
+    attack slowly (log a ~ N(-2.2, 0.3^2)); log r ~ N(2.4, 0.6^2) in both."""
+
+    stochastic_sim = True
+
+    def __init__(self, n0s=(5, 10, 15, 20, 25, 30, 40), vorac=0.9):
+        super().__init__(name="fish", param_names=["log_a", "log_r"], lower=np.log([0.01, 0.5]),
+                         upper=np.log([1000.0, 200.0]), blocks=[np.array([k]) for k in range(len(n0s))],
+                         block_labels=[f"n0={n}" for n in n0s], discrete=True,
+                         meta=dict(n0s=list(n0s), vorac=vorac))
+        self.n0s, self.vorac = list(n0s), vorac
+
+    def latent(self, theta):
+        return np.array(theta, float, copy=True)
+
+    def observe_cols(self, latent, cols, rng):
+        rates = np.exp(latent)
+        out = np.empty((len(latent), len(cols)))
+        stoich = np.array([[1, 1], [0, -1]])  # (eaten, handling)
+        for k, c in enumerate(cols):
+            n0 = self.n0s[int(c)]
+            prop = lambda x, th, n0=n0: np.stack([th[:, 0] * (n0 - x[:, 0]) * (1 - x[:, 1]), th[:, 1] * x[:, 1]], 1)
+            out[:, k] = ssa(np.zeros((len(latent), 2), np.int64), stoich, prop, rates, [1.0], rng)[:, 0, 0]
+        return out
+
+    def observe(self, latent, rng):
+        return self.observe_cols(latent, np.arange(self.n_out), rng)
+
+    def simulate_cols(self, theta, cols, rng):
+        return self.observe_cols(theta, cols, rng)
+
+    def block_log_lik(self, theta, cols, q):
+        n0 = self.n0s[int(np.asarray(cols)[0])]
+        P = _fr_pmf(n0, np.exp(theta[:, 0]), np.exp(theta[:, 1]))
+        return np.log(np.maximum(P[np.arange(len(q)), np.asarray(q)[:, 0].astype(int)], 1e-300))
+
+    def sample_population(self, n, rng):
+        v = rng.uniform(size=n) < self.vorac
+        la = np.where(v, np.log(300.0), -2.2) + 0.3 * rng.standard_normal(n)
+        lr = 2.4 + 0.6 * rng.standard_normal(n)
+        return np.column_stack([la, lr])
+
+
 MODELS = {
     "scalar": ScalarGaussian,
     "linear": LinearGaussian,
@@ -475,6 +550,7 @@ MODELS = {
     "gene": GeneExpression,
     "bd_ssa": BirthDeathSSA,
     "feedback_ssa": FeedbackSSA,
+    "fish": FunctionalResponse,
 }
 
 

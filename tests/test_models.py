@@ -110,3 +110,32 @@ def test_gillespie_feedback_runs_and_represses():
     weak, strong = th.copy(), th.copy()
     weak[:, 5], strong[:, 5] = np.log(500.0), np.log(5.0)
     assert m.simulate(strong, rng)[:, -1].mean() < 0.7 * m.simulate(weak, rng)[:, -1].mean()
+
+
+def test_fish_gillespie_matches_master_equation():
+    from cmc.models import FunctionalResponse, _fr_pmf
+
+    rng = np.random.default_rng(2)
+    m = FunctionalResponse()
+    th = m.sample_population(3000, rng)
+    for c in (0, 3, 6):
+        n0 = m.n0s[c]
+        q = m.observe_cols(th, [c], rng)[:, 0].astype(int)
+        P = _fr_pmf(n0, np.exp(th[:, 0]), np.exp(th[:, 1]))
+        assert np.allclose(P.sum(1), 1, atol=1e-8)
+        assert np.abs(np.bincount(q, minlength=n0 + 1) / len(q) - P.mean(0)).max() < 0.03
+        ll = m.block_log_lik(th[:50], [c], q[:50, None])
+        assert np.allclose(ll, np.log(P[np.arange(50), q[:50]]))
+
+
+def test_count_classifier_recovers_discrete_ratio():
+    from cmc.ratio import ClassifierRatio
+
+    rng = np.random.default_rng(3)
+    data = rng.poisson(3, (5000, 1)).astype(float)
+    sim = rng.poisson(5, (5000, 1)).astype(float)
+    grid = np.arange(0, 9)[:, None].astype(float)
+    from scipy.stats import poisson
+    truth = poisson.logpmf(grid[:, 0], 3) - poisson.logpmf(grid[:, 0], 5)
+    lr = ClassifierRatio("logistic_bins", discrete=True).fit(data, sim).log_ratio(grid)
+    assert np.max(np.abs(lr - truth)[1:8]) < 0.2  # counts 0 and 8 have only ~35-40 cells in one sample

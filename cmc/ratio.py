@@ -77,6 +77,14 @@ class ClassifierRatio:
                 StandardScaler(),
                 LogisticRegression(C=100.0, max_iter=2000),
             )
+        if self.kind == "logistic_bins":  # one indicator per count value: matches the whole pmf
+            from sklearn.preprocessing import FunctionTransformer, OneHotEncoder
+
+            return make_pipeline(
+                FunctionTransformer(lambda x: np.rint(np.expm1(x)).astype(int) if self.discrete else x),
+                OneHotEncoder(handle_unknown="ignore"),
+                LogisticRegression(C=10.0, max_iter=2000),
+            )
         if self.kind == "mlp":
             return make_pipeline(
                 StandardScaler(),
@@ -101,8 +109,8 @@ class ClassifierRatio:
         clf = self._make()
         kw = {}
         if weight is not None:
-            if self.kind != "logistic2":
-                raise ValueError("data weights are supported for logistic2 only")
+            if self.kind not in ("logistic2", "logistic_bins"):
+                raise ValueError("data weights are supported for the logistic classifiers only")
             w = np.asarray(weight, float)
             kw[clf.steps[-1][0] + "__sample_weight"] = np.r_[w * len(w) / w.sum(), np.ones(len(x0))]
         self.clf = clf.fit(X, y, **kw)
@@ -149,6 +157,6 @@ class VineJointRatio:
 def make_ratio(kind, discrete, rng, seed=0):
     if kind == "kde":
         return KdeRatio(discrete=discrete, rng=rng)
-    if kind in ("logistic2", "mlp"):
+    if kind in ("logistic2", "logistic_bins", "mlp"):
         return ClassifierRatio(kind=kind, discrete=discrete, seed=seed)
     raise ValueError(kind)

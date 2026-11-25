@@ -23,6 +23,15 @@ cfg = yaml.safe_load(open(a.config))
 ex = cfg["examples"][a.example]
 model = make_model(ex.get("kind", a.example), **ex["model"])
 rng = np.random.default_rng(1000 * a.seed + 17)
+if "data_csv" in ex:  # real data (fish functional response): one block per initial prey number
+    import csv
+
+    rows = [r for r in csv.DictReader(open(ex["data_csv"])) if r["exclude"] == "No"]
+    data = [np.array([[float(r["n_prey_eaten"])] for r in rows if int(r["n_prey_initial"]) == n0])
+            for n0 in model.n0s]
+    np.savez_compressed(a.out, truth=np.zeros((0, model.p)), floor=np.full(len(data), np.nan),
+                        **{f"block{j}": d for j, d in enumerate(data)})
+    raise SystemExit
 data = make_snapshot_data(model, ex["n_cells"], rng)
 replicate = make_snapshot_data(model, ex["n_cells"], rng)
 truth = model.sample_population({**cfg["settings"], **ex.get("settings", {})}["n_truth"], rng)

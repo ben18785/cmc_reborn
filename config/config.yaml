@@ -145,6 +145,35 @@ examples:
     n_sweeps: 120
     settings: {n_particles: 10000, n_reps: 2}
     methods: [iter_logistic, iter_mlp, bb_logistic_ssa, bayes_gauss_nre]
+  # Fish functional response (real data: Newport et al. 2026; one trial per fish, prey eaten out of
+  # n0 in {5,...,40}): a stochastic model whose exact likelihood needs a matrix exponential per fish.
+  # fish_sim mimics the real design (about 95 fish per n0) with a known bimodal population;
+  # fish_sim_big has 2000 fish per n0 (the exact sampler would take ~a day there, so it is left out).
+  fish_sim:
+    kind: fish
+    experiment: fish
+    model: {}
+    n_cells: 95
+    holdout: []
+    n_sweeps: 30
+    methods: [iter_logistic, iter_bins, iter_mlp, bb_bins, bayes_gauss, bayes_dpm]
+  fish_sim_big:
+    kind: fish
+    experiment: fish
+    model: {}
+    n_cells: 2000
+    holdout: []
+    n_sweeps: 30
+    methods: [iter_logistic, iter_bins, iter_mlp, bb_bins]
+  fish_real:
+    kind: fish
+    experiment: fish
+    data_csv: data/fish/functional_response.csv
+    model: {}
+    n_cells: 95
+    holdout: []
+    n_sweeps: 30
+    methods: [iter_logistic, iter_bins, iter_mlp, bb_bins, bayes_gauss, bayes_dpm]
 methods:
   cmc_paper:               # original CMC: deterministic map, joint vine-KDE pushforward, one step
     kind: one_step
@@ -184,6 +213,13 @@ methods:
     kind: bootstrap
     ratio: logistic2
     n_boot: 10
+  iter_bins:               # iterated, logistic regression on one indicator per count (whole pmf of a 1-d count block)
+    kind: iterate
+    ratio: logistic_bins
+  bb_bins:                 # Bayesian bootstrap of iter_bins
+    kind: bootstrap
+    ratio: logistic_bins
+    n_boot: 20
   bayes_gauss_nre:         # Gaussian mixed effects, likelihood-free
     kind: bayes
     lik: nre

@@ -49,8 +49,9 @@ def score(theta, logw, r):
     out["ed_fit"] = block_discrepancies(model, theta, logw, data, fit_blocks, r)
     if hold_blocks:
         out["ed_holdout"] = block_discrepancies(model, theta, logw, data, hold_blocks, r)
-    draws = resample(theta, logw, 2000, r)
-    out["ed_theta"] = energy_distance(draws, truth, scale=theta_scale, rng=r)
+    if len(truth):  # real data have no known population
+        draws = resample(theta, logw, 2000, r)
+        out["ed_theta"] = energy_distance(draws, truth, scale=theta_scale, rng=r)
     return out
 
 
@@ -58,7 +59,7 @@ def callback(theta, logw, r):
     s = score(theta, logw, r)
     return {"ed_fit_mean": float(np.mean(s["ed_fit"])),
             "ed_holdout_mean": float(np.mean(s["ed_holdout"])) if hold_blocks else None,
-            "ed_theta": s["ed_theta"]}
+            "ed_theta": s.get("ed_theta")}
 
 
 common = dict(n_reps=st["n_reps"], n_fit=st["n_fit"], ess_frac=st["ess_frac"], shrink=st["shrink"],
@@ -113,9 +114,9 @@ final.update(
     mean=m.tolist(),
     sd=np.sqrt(np.diag(C)).tolist(),
     cov=C.tolist(),
-    truth_mean=truth.mean(0).tolist(),
-    truth_sd=truth.std(0).tolist(),
-    truth_cov=np.cov(truth.T).tolist(),
+    truth_mean=truth.mean(0).tolist() if len(truth) else None,
+    truth_sd=truth.std(0).tolist() if len(truth) else None,
+    truth_cov=np.cov(truth.T).tolist() if len(truth) else None,
     ess=float(ess(logw)),
     floor_fit=float(np.mean(floor[fit_blocks])),
     floor_holdout=float(np.mean(floor[hold_blocks])) if hold_blocks else None,

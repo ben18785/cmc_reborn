@@ -108,6 +108,9 @@ class _Lik:
 
 class ExactLik(_Lik):
     def block_ll(self, b, theta, q):
+        f = getattr(self.model, "block_log_lik", None)  # models whose likelihood is not latent-based
+        if f is not None:
+            return f(theta, self.cols(b), q)
         return self.model.log_lik(self.model.latent_cols(theta, self.cols(b)), q)
 
 
@@ -161,7 +164,15 @@ def _iw_logpdf(S, nu, Psi):
 
 
 def _chol(S):
-    return np.linalg.cholesky(S + 1e-12 * np.eye(len(S)))
+    """Cholesky factor, symmetrising and adding jitter if rounding has made S indefinite."""
+    S = 0.5 * (S + S.T)
+    jit = 1e-12 * max(1.0, float(np.mean(np.abs(np.diag(S)))))
+    for _ in range(8):
+        try:
+            return np.linalg.cholesky(S + jit * np.eye(len(S)))
+        except np.linalg.LinAlgError:
+            jit *= 100
+    raise np.linalg.LinAlgError("covariance is not positive definite")
 
 
 # ---------------------------------------------------------------- sampler
@@ -336,7 +347,7 @@ def fit_hierarchical(model, data, fit_blocks, s: BayesSettings, callback=None, n
             A = expm(e * M)
             xp = mu[k] + (x - mu[k]) @ A.T
             Sp = A @ Sig[k] @ A.T
-            if inbox(xp).all():
+            if inbox(xp).all() and np.all(np.linalg.eigvalsh(0.5 * (Sp + Sp.T)) > 0):
                 llp = lik(xp, cells)
                 la = (llp.sum() - llx.sum() + _iw_logpdf(Sp, nu0, Psi0) - _iw_logpdf(Sig[k], nu0, Psi0)
                       + (p + 1) * e * np.trace(M))

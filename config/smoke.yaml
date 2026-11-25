@@ -83,6 +83,23 @@ examples:
     n_sweeps: 2
     settings: {n_particles: 800, n_reps: 2}
     methods: [iter_logistic, bb_logistic_ssa, bayes_gauss_nre]
+  fish_sim:
+    kind: fish
+    experiment: fish
+    model: {}
+    n_cells: 60
+    holdout: []
+    n_sweeps: 2
+    methods: [iter_bins, bb_bins, bayes_dpm]
+  fish_real:
+    kind: fish
+    experiment: fish
+    data_csv: data/fish/functional_response.csv
+    model: {}
+    n_cells: 60
+    holdout: []
+    n_sweeps: 2
+    methods: [iter_bins, bayes_gauss]
 methods:
   cmc_paper:               # original CMC: deterministic map, joint vine-KDE pushforward, one step
     kind: one_step
@@ -119,6 +136,13 @@ methods:
   bb_logistic_ssa:         # Bayesian bootstrap for the costlier Gillespie examples
     kind: bootstrap
     ratio: logistic2
+    n_boot: 2
+  iter_bins:               # iterated, logistic regression on one indicator per count (whole pmf of a 1-d count block)
+    kind: iterate
+    ratio: logistic_bins
+  bb_bins:                 # Bayesian bootstrap of iter_bins
+    kind: bootstrap
+    ratio: logistic_bins
     n_boot: 2
   bayes_gauss_nre:
     kind: bayes
