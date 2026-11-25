@@ -25,7 +25,7 @@ model = make_model(ex.get("kind", a.example), **ex["model"])
 rng = np.random.default_rng(1000 * a.seed + 17)
 data = make_snapshot_data(model, ex["n_cells"], rng)
 replicate = make_snapshot_data(model, ex["n_cells"], rng)
-truth = model.sample_population(cfg["settings"]["n_truth"], rng)
+truth = model.sample_population({**cfg["settings"], **ex.get("settings", {})}["n_truth"], rng)
 floor = []
 for d, r in zip(data, replicate):
     if model.discrete:

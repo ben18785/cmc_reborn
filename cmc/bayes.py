@@ -128,7 +128,7 @@ class NreLik(_Lik):
 
         for b in range(len(self.q)):
             th = sample_theta(self.n_train)
-            q = self.model.observe(self.model.latent_cols(th, self.cols(b)), rng)
+            q = self.model.simulate_cols(th, self.cols(b), rng)
             self.n_sim += len(th)
             X = np.vstack([self._x(th, q), self._x(th, q[rng.permutation(len(q))])])
             y = np.r_[np.ones(len(th)), np.zeros(len(th))]

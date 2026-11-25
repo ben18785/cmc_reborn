@@ -31,7 +31,8 @@ for r in runs:
 
 # examples with a `kind` belong to the tracking experiment (growth designs) or the Bayesian
 # comparison; each has its own figure and table and stays out of the main table
-TRACK = [e for e in cfg["examples"] if "design" in cfg["examples"][e]["model"] and any(k[0] == e for k in by)]
+TRACK = [e for e in cfg["examples"] if cfg["examples"][e].get("kind") == "growth"
+         and "design" in cfg["examples"][e]["model"] and any(k[0] == e for k in by)]
 EXAMPLES = [e for e in cfg["examples"] if "kind" not in cfg["examples"][e] and any(k[0] == e for k in by)]
 METHODS = [m for m in cfg["methods"] if any(k[1] == m for k in by)]
 LABEL = {"cmc_paper": "CMC (noise ignored)", "cmc_augmented": "CMC (augmented)",
@@ -45,8 +46,9 @@ COLOR = {"cmc_paper": "#7f7f7f", "cmc_augmented": "#eda100", "iter_kde": "#1baf7
 LABEL.update({"bayes_gauss_nre": "Bayes, Gaussian mixed effects, likelihood-free",
               "iter_logistic_truth": "Iterated, logistic", "bayes_gauss_truth": "Bayes, exact likelihood",
               "bayes_gauss_nre_truth": "Bayes, likelihood-free (40k sims/block)",
-              "bayes_gauss_nre_small_truth": "Bayes, likelihood-free (5k sims/block)"})
-COLOR.update({"iter_logistic_truth": COLOR["iter_logistic"], "bayes_gauss_truth": COLOR["bayes_gauss"],
+              "bayes_gauss_nre_small_truth": "Bayes, likelihood-free (5k sims/block)",
+              "bb_logistic_ssa": "Iterated, logistic + Bayesian bootstrap"})
+COLOR.update({"bb_logistic_ssa": COLOR["bb_logistic"], "iter_logistic_truth": COLOR["iter_logistic"], "bayes_gauss_truth": COLOR["bayes_gauss"],
               "bayes_gauss_nre_truth": "#4d4d4d", "bayes_gauss_nre_small_truth": "#b0b0b0"})
 
 
@@ -353,11 +355,13 @@ if TRACK:
 # Each method stores S populations (posterior draws / bootstrap replicates; S = 1 for CMC). For every
 # quantity we take the population mean and the population sd (cell-to-cell spread) in each of them.
 BM = [m for m in ["iter_logistic", "bb_logistic", "bayes_gauss", "bayes_dpm", "bayes_dpm_nre"] if m in cfg["methods"]]
-BEX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") != "robustness"
+BEX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") not in ("robustness", "ssa")
        and any((e, m) in by for m in BM if cfg["methods"][m]["kind"] in ("bootstrap", "bayes"))]
+SSA_M = [m for m in ["iter_logistic", "iter_mlp", "bb_logistic_ssa", "bayes_gauss", "bayes_gauss_nre"] if m in cfg["methods"]]
+SSA_EX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") == "ssa" and any(k[0] == e for k in by)]
 PRETTY = {"log_RT": "log $R_T$", "log_k1": "log $k_1$", "log_km1": "log $k_{-1}$",
           "log_kdeg": "log $k_\\mathrm{deg}$", "log_kdegs": "log $k_\\mathrm{degs}$"}
-if BEX:
+def bayes_summary(BEX, BM, name):
     def quantities(e):
         names = next(by[k][0]["param_names"] for k in by if k[0] == e)
         q = [(PRETTY.get(n, n.replace("theta", "θ")), (lambda k: lambda x: x[..., k])(k)) for k, n in enumerate(names)]
@@ -413,13 +417,14 @@ if BEX:
                 + f" & {np.mean([(r['final'].get('n_solves') or 0) + (r['final'].get('n_solves_train') or 0) for r in rs]):.1e}"
                 + f" & {np.mean([r['final']['seconds'] for r in rs]) / 60:.1f} \\\\"
                 + (" \\addlinespace" if m == ms_[-1] and e != BEX[-1] else ""))
-    open(os.path.join(a.out, "bayes.tex"), "w").write(
+    open(os.path.join(a.out, f"{name}.tex"), "w").write(
         "\\begin{tabular}{llrrrrrr}\n\\toprule\n"
         "example (blocks$\\times$dims) & method & $\\theta$ ED & mean covered & sd covered & "
         "sd of fixed rates & model evaluations & minutes \\\\\n\\midrule\n" + "\n".join(lines) + "\n\\bottomrule\n\\end{tabular}\n")
 
     ncol = max(len(quantities(e)) for e in BEX)
-    MKB = {"iter_logistic": "o", "bb_logistic": "s", "bayes_gauss": "^", "bayes_dpm": "D", "bayes_dpm_nre": "v"}
+    MKB = {"iter_logistic": "o", "iter_mlp": "P", "bb_logistic": "s", "bb_logistic_ssa": "s", "bayes_gauss": "^",
+           "bayes_dpm": "D", "bayes_dpm_nre": "v", "bayes_gauss_nre": "v"}
     fig, axes = plt.subplots(len(BEX), ncol, figsize=(1.45 * ncol + 0.5, 1.75 * len(BEX) + 0.6), squeeze=False)
     for i, e in enumerate(BEX):
         qs = quantities(e)
@@ -455,9 +460,15 @@ if BEX:
         if any((e, m) in by for e in BEX)]
     fig.legend(handles=hs, loc="upper center", ncol=3, fontsize=6.5, frameon=False)
     fig.tight_layout(rect=(0, 0, 1, 1 - 0.55 / (1.75 * len(BEX) + 0.6)))
-    fig.savefig(os.path.join(a.out, "bayes.pdf"))
-    fig.savefig(os.path.join(a.out, "bayes.png"), dpi=150)
+    fig.savefig(os.path.join(a.out, f"{name}.pdf"))
+    fig.savefig(os.path.join(a.out, f"{name}.png"), dpi=150)
     plt.close(fig)
+
+
+if BEX:
+    bayes_summary(BEX, BM, "bayes")
+if SSA_EX:
+    bayes_summary(SSA_EX, SSA_M, "ssa")
 
 # ---- figure 9 + table: robustness tests on the gene example
 # test 1 (gene_truth): every method starts at the true population; distance to it over the run.

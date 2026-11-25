@@ -66,3 +66,47 @@ def test_growth_designs_share_outputs_and_cells():
     data = make_snapshot_data(tracked, 3000, np.random.default_rng(0))
     c = np.corrcoef(data[0][:, 0], data[0][:, 10])[0, 1]
     assert c > 0.2
+
+
+def test_gillespie_birth_death_matches_poisson_and_tracks_cells():
+    from scipy.stats import poisson
+
+    from cmc.models import BirthDeathSSA
+
+    rng = np.random.default_rng(0)
+    m = BirthDeathSSA()
+    th = m.sample_population(4000, rng)
+    q = m.simulate(th, rng)
+    lam = m.latent_cols(th, np.arange(m.n_out))
+    # given theta, counts are Poisson: mean and variance of q - lam match lam
+    assert np.allclose(q.mean(0) / lam.mean(0), 1, atol=0.03)
+    assert np.allclose(((q - lam) ** 2).mean(0) / lam.mean(0), 1, atol=0.1)
+    assert np.allclose(m.log_lik(lam[:5, :2], q[:5, :2]),
+                       poisson.logpmf(q[:5, :2], lam[:5, :2]).sum(1))
+    # a block's columns can be simulated on their own
+    assert m.observe_cols(m.latent(th[:10]), m.blocks[3], rng).shape == (10, 2)
+    # tracked design: one block, one trajectory per cell, so counts correlate over time
+    mt = BirthDeathSSA(design="tracked")
+    assert len(mt.blocks) == 1 and len(mt.blocks[0]) == 16
+    th1 = np.tile(mt.pop_mean, (3000, 1))  # same rates in every cell: only intrinsic noise
+    qt = mt.simulate(th1, rng)
+    # gene 1 at t = 6 h (col 10) and t = 8 h (col 12): immigration-death gives
+    # corr = exp(-g dt) sqrt(lam6 / lam8)
+    k, g = np.exp(mt.pop_mean[0]), np.exp(mt.pop_mean[2])
+    lam6, lam8 = k / g * (1 - np.exp(-6 * g)), k / g * (1 - np.exp(-8 * g))
+    expected = np.exp(-2 * g) * np.sqrt(lam6 / lam8)
+    assert abs(np.corrcoef(qt[:, 10], qt[:, 12])[0, 1] - expected) < 0.05
+
+
+def test_gillespie_feedback_runs_and_represses():
+    from cmc.models import FeedbackSSA
+
+    rng = np.random.default_rng(1)
+    m = FeedbackSSA()
+    th = m.sample_population(2000, rng)
+    q = m.simulate(th, rng)
+    assert q.shape == (2000, 12) and (q >= 0).all()
+    # stronger feedback (smaller K) lowers protein at the last time
+    weak, strong = th.copy(), th.copy()
+    weak[:, 5], strong[:, 5] = np.log(500.0), np.log(5.0)
+    assert m.simulate(strong, rng)[:, -1].mean() < 0.7 * m.simulate(weak, rng)[:, -1].mean()

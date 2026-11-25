@@ -26,7 +26,7 @@ SEEDS = C["seeds"]
 # an example may restrict its methods with `methods: [...]`
 FITS = [RES + f"/fits/{e}/{m}_seed{s}.json" for e in EXAMPLES
         for m in C["examples"][e].get("methods", METHODS) for s in SEEDS]
-CODE = ["cmc/models.py", "cmc/infer.py", "cmc/ratio.py", "cmc/metrics.py", "cmc/bayes.py"]
+CODE = ["cmc/models.py", "cmc/infer.py", "cmc/ratio.py", "cmc/metrics.py", "cmc/bayes.py", "cmc/ssa.py"]
 
 
 rule all:
@@ -91,6 +91,9 @@ rule summarise:
         RES + "/summary/robustness.pdf",
         RES + "/summary/robustness.png",
         RES + "/summary/robustness.tex",
+        RES + "/summary/ssa.pdf",
+        RES + "/summary/ssa.png",
+        RES + "/summary/ssa.tex",
         expand(RES + "/summary/marginals_{example}.pdf", example=["growth", "gene", "linear"]),
     params:
         cfg=CFG,

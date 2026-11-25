@@ -96,7 +96,9 @@ def iterate_blocks(model, data, fit_blocks, s: Settings, callback=None, data_wei
     else:
         theta = np.asarray(init_theta, float)[rng.integers(len(init_theta), size=N)]
     lat = model.latent(theta)
-    n_solves = N  # forward-model evaluations (one per particle created); scoring not counted
+    # forward-model evaluations: one per particle created (deterministic latent), or one per
+    # simulated output (stochastic simulators); scoring not counted
+    n_solves = 0 if model.stochastic_sim else N
     logw = np.full(N, -np.log(N))
     targets = {}
     history = []
@@ -110,21 +112,23 @@ def iterate_blocks(model, data, fit_blocks, s: Settings, callback=None, data_wei
                 est = make_ratio(s.ratio, model.discrete, rng, seed=int(rng.integers(1 << 31)))
                 targets[j] = est
             idx = systematic_resample(logw, s.n_fit, rng)
-            q_train = model.observe(lat[idx][:, cols], rng) if s.noise else lat[idx][:, cols]
+            q_train = model.observe_cols(lat[idx], cols, rng) if s.noise else lat[idx][:, cols]
             if data_weights is None:
                 est.fit(data[j], q_train)
             else:
                 est.fit(data[j], q_train, weight=data_weights[j])
             reps = 1 if not s.noise else s.n_reps
-            lat_rep = np.repeat(lat[:, cols], reps, axis=0)
-            q_eval = model.observe(lat_rep, rng) if s.noise else lat_rep
+            lat_rep = np.repeat(lat, reps, axis=0)
+            q_eval = model.observe_cols(lat_rep, cols, rng) if s.noise else lat_rep[:, cols]
+            if s.noise and model.stochastic_sim:  # every noise draw is a full simulation
+                n_solves += len(idx) + len(lat_rep)
             lr = np.clip(est.log_ratio(q_eval), -s.clip, s.clip).reshape(N, reps)
             mult = logsumexp(lr, axis=1) - np.log(reps)
             logw = normalise(logw + s.step * mult)
             if ess(logw) < s.ess_frac * N:
                 theta = rejuvenate(model, theta, logw, s.shrink, rng)
                 lat = model.latent(theta)
-                n_solves += N
+                n_solves += 0 if model.stochastic_sim else N
                 logw = np.full(N, -np.log(N))
                 n_rejuv += 1
         m, C = weighted_moments(theta, logw)
@@ -142,7 +146,7 @@ def one_step_joint(model, data, fit_blocks, s: Settings):
     theta = model.sample_prior(N, rng)
     lat = model.latent(theta)
     cols = np.concatenate([model.blocks[j] for j in fit_blocks])
-    q = model.observe(lat[:, cols], rng) if s.noise else lat[:, cols]
+    q = model.observe_cols(lat, cols, rng) if s.noise else lat[:, cols]
     est = VineJointRatio([model.blocks[j] for j in fit_blocks], model.discrete, rng,
                          trunc_lvl=s.trunc_lvl, threads=s.threads)
     t0 = time.time()

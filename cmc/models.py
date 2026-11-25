@@ -22,6 +22,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from .ssa import ssa
+
 
 @dataclass
 class Model:
@@ -77,6 +79,18 @@ class Model:
     def latent_cols(self, theta: np.ndarray, cols) -> np.ndarray:
         """latent(theta)[:, cols]; models may override to compute only those outputs."""
         return self.latent(theta)[:, cols]
+
+    # True when observe() runs a full stochastic simulation (e.g. Gillespie), so that every
+    # noise draw costs a simulation; False when it only adds noise to the cached latent.
+    stochastic_sim = False
+
+    def observe_cols(self, latent: np.ndarray, cols, rng) -> np.ndarray:
+        """Noisy outputs `cols` given the full cached latent(theta)."""
+        return self.observe(latent[:, cols], rng)
+
+    def simulate_cols(self, theta: np.ndarray, cols, rng) -> np.ndarray:
+        """One draw of the outputs `cols` for each row of theta."""
+        return self.observe(self.latent_cols(theta, cols), rng)
 
     def log_lik(self, latent: np.ndarray, q: np.ndarray) -> np.ndarray:
         """log K(q | theta) given latent(theta), summed over the last axis (broadcasts).
@@ -327,11 +341,140 @@ class GeneExpression(Model):
         return rng.multivariate_normal(self.pop_mean, self.pop_cov, size=n)
 
 
+# --------------------------------------------------------------------------
+class SSAModel(Model):
+    """A Gillespie model observed at `times`. Outputs are time-major: the observed species
+    at time 1, then at time 2, and so on. The latent is theta itself, and every call to
+    observe runs the simulator, so each output draw costs a full simulation.
+
+    design: "snapshot" (each time on fresh cells, one block per time) or
+            "tracked"  (every time on the same cells: one block, one trajectory per cell)."""
+
+    stochastic_sim = True
+
+    def _setup(self, name, names, lower, upper, times, obs_species, species, design, meta):
+        self.times = np.asarray(times, float)
+        self.obs_species = list(obs_species)
+        self.n_obs = len(obs_species)
+        nt = len(times)
+        groups = [[k] for k in range(nt)] if design == "snapshot" else [list(range(nt))]
+        if design not in ("snapshot", "tracked"):
+            raise ValueError(f"unknown design {design!r}")
+        blocks = [np.array([self.n_obs * k + s for k in g for s in range(self.n_obs)]) for g in groups]
+        labels = ["t=" + "+".join(f"{times[k]:g}" for k in g) for g in groups]
+        Model.__init__(self, name=name, param_names=names, lower=np.log(lower), upper=np.log(upper),
+                       blocks=blocks, block_labels=labels, discrete=True,
+                       meta=dict(meta, times=list(times), design=design,
+                                 observed=[species[s] for s in obs_species]))
+
+    def latent(self, theta):
+        return np.array(theta, float, copy=True)
+
+    def observe_cols(self, latent, cols, rng):
+        cols = np.asarray(cols)
+        tk = sorted({int(c) // self.n_obs for c in cols})
+        traj = ssa(self.x0(len(latent)), self.stoich, self.propensity, np.exp(latent), self.times[tk], rng)
+        obs = traj[:, :, self.obs_species].reshape(len(latent), -1).astype(float)
+        pos = {tk[i] * self.n_obs + s: i * self.n_obs + s for i in range(len(tk)) for s in range(self.n_obs)}
+        return obs[:, [pos[int(c)] for c in cols]]
+
+    def observe(self, latent, rng):
+        return self.observe_cols(latent, np.arange(self.n_out), rng)
+
+    def simulate_cols(self, theta, cols, rng):
+        return self.observe_cols(theta, cols, rng)
+
+
+class BirthDeathSSA(SSAModel):
+    """Two genes, each with constant transcription k_g and first-order decay gamma_g, from zero
+    copies, simulated with Gillespie. Transcription rates are correlated across cells. The
+    snapshot likelihood is exact: X_g(t) ~ Poisson(k_g / gamma_g (1 - exp(-gamma_g t))), so the
+    exact hierarchical sampler can serve as a control."""
+
+    stoich = np.array([[1, 0], [-1, 0], [0, 1], [0, -1]])
+
+    def __init__(self, times=(0.5, 1, 2, 3, 4, 6, 8, 12), design="snapshot", corr=0.6):
+        self._setup("bd_ssa", ["log_k1", "log_k2", "log_g1", "log_g2"], [1.0, 1.0, 0.05, 0.05],
+                    [300.0, 300.0, 2.0, 2.0], times, [0, 1], ["X1", "X2"], design, dict(corr=corr))
+        self.pop_mean = np.log([40.0, 20.0, 0.3, 0.5])
+        sds = np.array([0.3, 0.3, 0.2, 0.2])
+        C = np.eye(4)
+        C[0, 1] = C[1, 0] = corr
+        self.pop_cov = C * np.outer(sds, sds)
+
+    def x0(self, n):
+        return np.zeros((n, 2), np.int64)
+
+    @staticmethod
+    def propensity(x, r):
+        return np.stack([r[:, 0], r[:, 2] * x[:, 0], r[:, 1], r[:, 3] * x[:, 1]], axis=1)
+
+    def latent_cols(self, theta, cols):
+        """Poisson means of outputs `cols` (exact snapshot likelihood)."""
+        k, g = np.exp(theta[:, :2]), np.exp(theta[:, 2:])
+        cols = np.asarray(cols)
+        t = self.times[cols // 2]
+        s = cols % 2
+        return (k[:, s] / g[:, s]) * (1 - np.exp(-g[:, s] * t))
+
+    def log_lik(self, latent, q):
+        if self.meta["design"] != "snapshot":
+            raise NotImplementedError("exact likelihood implemented for snapshots only")
+        from scipy.special import gammaln
+        return np.sum(q * np.log(latent) - latent - gammaln(q + 1), axis=-1)
+
+    def sample_population(self, n, rng):
+        return rng.multivariate_normal(self.pop_mean, self.pop_cov, size=n)
+
+
+class FeedbackSSA(SSAModel):
+    """Telegraph gene with negative autoregulation, simulated with Gillespie; mRNA (M) and
+    protein (P) are measured, the promoter state is not. Reactions:
+
+        off -> on   k_on / (1 + (P/K)^2)        on -> off   k_off
+        on -> on + M   k_m                      M -> 0      gamma_m M
+        M -> M + P     k_p M                    P -> 0      gamma_p P  (gamma_p = 0.2, known)
+
+    Starts with the promoter off and no molecules. The chemical master equation has no closed
+    form, so there is no exact per-cell likelihood. Transcription and translation rates vary
+    across cells (correlated); the other rates are shared."""
+
+    stoich = np.array([[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]])
+    gamma_p = 0.2
+
+    def __init__(self, times=(1, 2, 4, 8, 16, 24), design="snapshot", corr=0.5):
+        self._setup("feedback_ssa", ["log_kon", "log_koff", "log_km", "log_gm", "log_kp", "log_K"],
+                    [0.1, 0.1, 2.0, 0.2, 0.5, 5.0], [10.0, 10.0, 200.0, 5.0, 20.0, 500.0],
+                    times, [1, 2], ["G", "M", "P"], design, dict(corr=corr, gamma_p=self.gamma_p))
+        self.pop_mean = np.log([1.0, 1.0, 20.0, 1.0, 2.0, 50.0])
+        sds = np.array([0.0, 0.0, 0.3, 0.0, 0.3, 0.0])
+        C = np.eye(6)
+        C[2, 4] = C[4, 2] = corr
+        self.pop_cov = C * np.outer(sds, sds)
+
+    def x0(self, n):
+        return np.zeros((n, 3), np.int64)
+
+    def propensity(self, x, r):
+        G, M, P = x[:, 0], x[:, 1], x[:, 2]
+        on = r[:, 0] / (1 + (P / r[:, 5]) ** 2)
+        return np.stack([on * (1 - G), r[:, 1] * G, r[:, 2] * G, r[:, 3] * M, r[:, 4] * M,
+                         self.gamma_p * P], axis=1)
+
+    def sample_population(self, n, rng):
+        v = np.diag(self.pop_cov) > 0  # shared rates are exactly fixed
+        out = np.tile(self.pop_mean, (n, 1))
+        out[:, v] = rng.multivariate_normal(self.pop_mean[v], self.pop_cov[np.ix_(v, v)], size=n)
+        return out
+
+
 MODELS = {
     "scalar": ScalarGaussian,
     "linear": LinearGaussian,
     "growth": GrowthFactor,
     "gene": GeneExpression,
+    "bd_ssa": BirthDeathSSA,
+    "feedback_ssa": FeedbackSSA,
 }
 
 
