@@ -65,6 +65,11 @@ rule summarise:
     output:
         RES + "/summary/table.md",
         RES + "/summary/table.tex",
+        RES + "/summary/scalar.pdf",
+        RES + "/summary/recovery.pdf",
+        RES + "/summary/params.pdf",
+        RES + "/summary/params.png",
+        expand(RES + "/summary/marginals_{example}.pdf", example=["growth", "gene", "linear"]),
     params:
         cfg=CFG,
         res=RES,

@@ -83,9 +83,9 @@ jobs:
           # each data file is uploaded by several jobs: merge without clobbering
           mkdir -p results
           for d in artifacts/*/; do cp -Rn "$d"* results/; done
-          # fits come from the artifacts; never rerun them here
-          PYTHONPATH=. python workflow/scripts/summarise.py --fits results/fits --data results/data \
-            --config ${{ inputs.config }} --out results/summary
+          # fits come from the artifacts: only the summarise rule may run (a missing fit is an error, not a rerun)
+          snakemake summarise --cores 1 --configfile ${{ inputs.config }} --config config_file=${{ inputs.config }} \
+            --rerun-triggers mtime --allowed-rules summarise --forcerun summarise
           cat results/summary/table.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
