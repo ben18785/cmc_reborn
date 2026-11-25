@@ -33,8 +33,8 @@ EXAMPLES = [e for e in cfg["examples"] if any(k[0] == e for k in by)]
 METHODS = [m for m in cfg["methods"] if any(k[1] == m for k in by)]
 LABEL = {"cmc_paper": "CMC (noise ignored)", "cmc_augmented": "CMC (augmented)",
          "iter_kde": "Iterated, KDE", "iter_logistic": "Iterated, logistic", "iter_mlp": "Iterated, MLP"}
-COLOR = {"cmc_paper": "#7f7f7f", "cmc_augmented": "#bcbd22", "iter_kde": "#1f77b4",
-         "iter_logistic": "#2ca02c", "iter_mlp": "#d62728"}
+COLOR = {"cmc_paper": "#7f7f7f", "cmc_augmented": "#eda100", "iter_kde": "#1baf7a",
+         "iter_logistic": "#2a78d6", "iter_mlp": "#eb6834"}  # colour-blind-safe categorical order
 
 
 def het_ratio(f):
@@ -166,5 +166,45 @@ for e, params in [("growth", [0, 1]), ("gene", [0, 3]), ("linear", [0, 1])]:
     axes[0].legend(fontsize=6, frameon=False)
     fig.tight_layout()
     fig.savefig(os.path.join(a.out, f"marginals_{e}.pdf"))
+    plt.close(fig)
+
+# ---- figure 4: population mean +- sd across cells, truth vs methods, every parameter
+PM = [m for m in ["cmc_paper", "iter_logistic", "iter_mlp"] if m in METHODS]
+MARK = {"cmc_paper": "s", "iter_logistic": "o", "iter_mlp": "D"}
+EX = [e for e in ["scalar", "linear", "growth", "gene"] if all((e, m) in by for m in PM)]
+if EX and PM:
+    ncol = max(len(by[(e, PM[0])][0]["param_names"]) for e in EX)
+    fig, axes = plt.subplots(len(EX), ncol, figsize=(1.25 * ncol + 0.6, 1.55 * len(EX) + 0.5), squeeze=False)
+    for i, e in enumerate(EX):
+        names = by[(e, PM[0])][0]["param_names"]
+        for k in range(ncol):
+            ax = axes[i][k]
+            if k >= len(names):
+                ax.axis("off")
+                continue
+            F = by[(e, PM[0])][0]["final"]
+            tm, ts = F["truth_mean"][k], F["truth_sd"][k]
+            ax.axhline(tm, color="k", lw=0.6, ls=":", zorder=0)
+            ax.errorbar(0, tm, yerr=ts if ts > 1e-9 else None, fmt="_", ms=10, color="k", lw=1.6, capsize=0)
+            for j, m in enumerate(PM, start=1):
+                Fs = [r["final"] for r in by[(e, m)]]
+                mu = np.mean([f["mean"][k] for f in Fs])
+                sd = np.mean([f["sd"][k] for f in Fs])
+                ax.errorbar(j, mu, yerr=sd, fmt=MARK[m], ms=4, color=COLOR[m], lw=1.6, capsize=0,
+                            mec="white", mew=0.5)
+            ax.set_xlim(-0.6, len(PM) + 0.6)
+            ax.set_xticks([])
+            for sp in ("top", "right"):
+                ax.spines[sp].set_visible(False)
+            ax.tick_params(labelsize=6, length=2)
+            ax.set_title(names[k].replace("log_g", "log γ").replace("log_", "log ").replace("theta", "θ"), fontsize=7, pad=2)
+        axes[i][0].set_ylabel(e, fontsize=8, fontweight="bold")
+    from matplotlib.lines import Line2D
+    handles = [Line2D([], [], color="k", marker="_", ms=10, lw=1.6, label="true population")] + [
+        Line2D([], [], color=COLOR[m], marker=MARK[m], ms=4, lw=1.6, label=LABEL[m]) for m in PM]
+    fig.legend(handles=handles, loc="upper center", ncol=len(handles), fontsize=7, frameon=False)
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.savefig(os.path.join(a.out, "params.pdf"))
+    fig.savefig(os.path.join(a.out, "params.png"), dpi=150)
     plt.close(fig)
 print(md)
