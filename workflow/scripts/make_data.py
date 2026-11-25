@@ -21,7 +21,7 @@ a = ap.parse_args()
 
 cfg = yaml.safe_load(open(a.config))
 ex = cfg["examples"][a.example]
-model = make_model(a.example, **ex["model"])
+model = make_model(ex.get("kind", a.example), **ex["model"])
 rng = np.random.default_rng(1000 * a.seed + 17)
 data = make_snapshot_data(model, ex["n_cells"], rng)
 replicate = make_snapshot_data(model, ex["n_cells"], rng)

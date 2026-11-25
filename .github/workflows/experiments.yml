@@ -31,7 +31,7 @@ jobs:
           only = os.environ.get("ONLY") or ""
           inc = []
           for e in c["examples"]:
-              for m in c["methods"]:
+              for m in c["examples"][e].get("methods", c["methods"]):
                   for s in c["seeds"]:
                       name = f"{e}-{m}-seed{s}"
                       if not only or re.search(only, name):

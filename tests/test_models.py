@@ -53,3 +53,16 @@ def test_snapshot_data(cls):
     assert len(data) == len(m.blocks)
     assert all(d.shape == (50, len(b)) for d, b in zip(data, m.blocks))
     assert all(np.all(np.isfinite(d)) for d in data)
+
+
+def test_growth_designs_share_outputs_and_cells():
+    from cmc.models import GrowthFactor, make_snapshot_data
+    snap, pairs, tracked = (GrowthFactor(design=d) for d in ("snapshot", "pairs", "tracked"))
+    assert [len(b) for b in snap.blocks] == [2] * 12
+    assert [len(b) for b in pairs.blocks] == [4] * 10
+    assert [len(b) for b in tracked.blocks] == [12, 12]
+    assert sorted(np.concatenate(tracked.blocks).tolist()) == list(range(24))
+    # tracked blocks: one cell's record across times is correlated (same theta)
+    data = make_snapshot_data(tracked, 3000, np.random.default_rng(0))
+    c = np.corrcoef(data[0][:, 0], data[0][:, 10])[0, 1]
+    assert c > 0.2

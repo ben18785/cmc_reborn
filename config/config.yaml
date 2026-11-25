@@ -23,6 +23,31 @@ examples:
     n_cells: 2000
     holdout: [3, 6]        # t = 3 h and t = 8 h
     n_sweeps: 20
+  # Tracking experiment: the same growth-factor population, measured destructively
+  # (snapshot), on the same cells at consecutive times (pairs), or at every time
+  # (tracked, e.g. live-cell imaging). 2000 cells per block, nothing held out; sweeps
+  # chosen so every design gets 240 block updates.
+  growth_snapshot:
+    kind: growth
+    model: {noise_sd: 0.1, design: snapshot}   # 12 blocks x 2 dims
+    n_cells: 2000
+    holdout: []
+    n_sweeps: 20
+    methods: [iter_logistic, iter_mlp]
+  growth_pairs:
+    kind: growth
+    model: {noise_sd: 0.1, design: pairs}      # 10 overlapping blocks x 4 dims
+    n_cells: 2000
+    holdout: []
+    n_sweeps: 24
+    methods: [iter_logistic, iter_mlp]
+  growth_tracked:
+    kind: growth
+    model: {noise_sd: 0.1, design: tracked}    # 2 blocks x 12 dims
+    n_cells: 2000
+    holdout: []
+    n_sweeps: 120
+    methods: [iter_logistic, iter_mlp]
 
 methods:
   cmc_paper:               # original CMC: deterministic map, joint vine-KDE pushforward, one step

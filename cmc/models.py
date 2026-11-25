@@ -187,26 +187,42 @@ class GrowthFactor(Model):
         dR/dt = RT kdeg - k1 L R + km1 P - kdeg R
         dP/dt = k1 L R - km1 P - kdegs P,      R(0) = P(0) = 0.
 
-    Snapshots: (log R, log P) measured on the same cells at each (dose L, time t),
-    with log-normal measurement noise of sd `noise_sd`. Population: RT and k1 vary
-    log-normally across cells, the other three rates are shared (as in the paper)."""
+    Outputs: (log R, log P) at each (dose L, time t), with independent log-normal
+    measurement noise of sd `noise_sd` on every measurement. Population: RT and k1
+    vary log-normally across cells, the other three rates are shared (as in the paper).
+
+    `design` sets which outputs are measured on the same cells (one block each):
+      "snapshot": each (dose, time) on its own cells (destructive measurement);
+      "pairs":    consecutive times at a dose tracked on the same cells (overlapping);
+      "tracked":  every time at a dose tracked on the same cells (live-cell imaging)."""
 
     names = ["log_RT", "log_k1", "log_km1", "log_kdeg", "log_kdegs"]
 
     def __init__(self, doses=(2.0, 10.0), times=(2, 5, 10, 20, 40, 80), noise_sd=0.1,
-                 pop_sd=(0.15, 0.2)):
+                 pop_sd=(0.15, 0.2), design="snapshot"):
         lower = np.log([2e5, 0.1, 1.0, 0.003, 0.05])
         upper = np.log([2e6, 10.0, 50.0, 0.1, 1.0])
         conds = [(L, t) for L in doses for t in times]
-        blocks = [np.array([2 * k, 2 * k + 1]) for k in range(len(conds))]
+        cols = lambda k: [2 * k, 2 * k + 1]  # (log R, log P) of condition k
+        nt = len(times)
+        if design == "snapshot":
+            groups = [[k] for k in range(len(conds))]
+        elif design == "pairs":
+            groups = [[d * nt + i, d * nt + i + 1] for d in range(len(doses)) for i in range(nt - 1)]
+        elif design == "tracked":
+            groups = [[d * nt + i for i in range(nt)] for d in range(len(doses))]
+        else:
+            raise ValueError(f"unknown design {design!r}")
+        blocks = [np.array([c for k in g for c in cols(k)]) for g in groups]
+        labels = [f"L={conds[g[0]][0]:g},t=" + "+".join(f"{conds[k][1]:g}" for k in g) for g in groups]
         super().__init__(
             name="growth",
             param_names=list(self.names),
             lower=lower,
             upper=upper,
             blocks=blocks,
-            block_labels=[f"L={L:g},t={t:g}" for L, t in conds],
-            meta=dict(noise_sd=noise_sd, doses=list(doses), times=list(times)),
+            block_labels=labels,
+            meta=dict(noise_sd=noise_sd, doses=list(doses), times=list(times), design=design),
         )
         self.conds = conds
         self.noise_sd = noise_sd
@@ -288,7 +304,8 @@ def make_model(name: str, **kwargs) -> Model:
 
 
 def make_snapshot_data(model: Model, n_cells: int, rng: np.random.Generator) -> list[np.ndarray]:
-    """Asynchronous snapshot data: each block is measured on its own fresh cells."""
+    """Each block is measured on its own fresh cells; within a block, all outputs come from
+    the same cells (one output pair per block = destructive snapshots)."""
     data = []
     for b in model.blocks:
         theta = model.sample_population(n_cells, rng)

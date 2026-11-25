@@ -18,6 +18,9 @@ RES = config.get("results", "results")
 EXAMPLES = list(config["examples"])
 METHODS = list(config["methods"])
 SEEDS = config["seeds"]
+# an example may restrict its methods with `methods: [...]`
+FITS = [RES + f"/fits/{e}/{m}_seed{s}.json" for e in EXAMPLES
+        for m in config["examples"][e].get("methods", METHODS) for s in SEEDS]
 CODE = ["cmc/models.py", "cmc/infer.py", "cmc/ratio.py", "cmc/metrics.py"]
 
 
@@ -59,7 +62,7 @@ rule fit:
 
 rule summarise:
     input:
-        fits=expand(RES + "/fits/{example}/{method}_seed{seed}.json", example=EXAMPLES, method=METHODS, seed=SEEDS),
+        fits=FITS,
         data=expand(RES + "/data/{example}_seed{seed}.npz", example=EXAMPLES, seed=SEEDS),
         code="workflow/scripts/summarise.py",
     output:
@@ -74,6 +77,9 @@ rule summarise:
         RES + "/summary/combos_growth.tex",
         RES + "/summary/exact.pdf",
         RES + "/summary/exact.png",
+        RES + "/summary/tracking.pdf",
+        RES + "/summary/tracking.png",
+        RES + "/summary/tracking.tex",
         expand(RES + "/summary/marginals_{example}.pdf", example=["growth", "gene", "linear"]),
     params:
         cfg=CFG,

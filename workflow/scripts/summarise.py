@@ -29,7 +29,9 @@ by = defaultdict(list)
 for r in runs:
     by[(r["example"], r["method"])].append(r)
 
-EXAMPLES = [e for e in cfg["examples"] if any(k[0] == e for k in by)]
+# the tracking experiment (examples with a `kind`) has its own figure and table
+TRACK = [e for e in cfg["examples"] if "kind" in cfg["examples"][e] and any(k[0] == e for k in by)]
+EXAMPLES = [e for e in cfg["examples"] if e not in TRACK and any(k[0] == e for k in by)]
 METHODS = [m for m in cfg["methods"] if any(k[1] == m for k in by)]
 LABEL = {"cmc_paper": "CMC (noise ignored)", "cmc_augmented": "CMC (augmented)",
          "iter_kde": "Iterated, KDE", "iter_logistic": "Iterated, logistic", "iter_mlp": "Iterated, MLP"}
@@ -271,6 +273,68 @@ if all(("scalar", m) in by for m in ["cmc_paper", "cmc_augmented", "iter_logisti
     fig.tight_layout()
     fig.savefig(os.path.join(a.out, "exact.pdf"))
     fig.savefig(os.path.join(a.out, "exact.png"), dpi=150)
+    plt.close(fig)
+
+# ---- figure 7 + table: tracking experiment (growth model, snapshot vs pairs vs tracked cells)
+if TRACK:
+    TM = [m for m in ["iter_logistic", "iter_mlp"] if any((e, m) in by for e in TRACK)]
+    DLAB = {"snapshot": "snapshots", "pairs": "pairs of times", "tracked": "tracked cells"}
+    design = {e: cfg["examples"][e]["model"].get("design", "snapshot") for e in TRACK}
+    names = by[(TRACK[0], TM[0])][0]["param_names"]
+
+    def corr(f, i, j):
+        C = np.array(f["cov"])
+        return C[i, j] / np.sqrt(C[i, i] * C[j, j])
+
+    lines = []
+    for e in TRACK:
+        for m in TM:
+            F = [r["final"] for r in by.get((e, m), [])]
+            if not F:
+                continue
+            r0 = by[(e, m)][0]
+            sd = np.mean([f["sd"] for f in F], 0)
+            tsd = np.array(F[0]["truth_sd"])
+            cells = r0["n_blocks_fit"] * cfg["examples"][e]["n_cells"]
+            lines.append(
+                f"{DLAB[design[e]] if m == TM[0] else ''} & {r0['n_blocks_fit']} $\\times$ {r0['n_out_fit'] // r0['n_blocks_fit']} & "
+                f"{cells} & {LABEL[m]} & {np.mean([f['ed_theta'] for f in F]):.3f} & "
+                f"{sd[0] / tsd[0]:.2f} & {sd[1] / tsd[1]:.2f} & {np.mean(sd[2:4]):.2f} & "
+                f"{np.mean([corr(f, 0, 3) for f in F]):.2f} & {np.mean([corr(f, 1, 2) for f in F]):.2f} \\\\")
+    open(os.path.join(a.out, "tracking.tex"), "w").write(
+        "\\begin{tabular}{lrrlrrrrrr}\n\\toprule\n"
+        "design & blocks $\\times$ dims & cells & method & $\\theta$ ED & sd ratio $R_T$ & sd ratio $k_1$ & "
+        "sd of fixed rates & corr$(R_T, k_\\mathrm{deg})$ & corr$(k_1, k_{-1})$ \\\\\n\\midrule\n"
+        + "\n".join(lines) + "\n\\bottomrule\n\\end{tabular}\n")
+
+    fig, axes = plt.subplots(1, len(names), figsize=(1.7 * len(names) + 0.4, 2.6), squeeze=False)
+    MK = {"iter_logistic": "o", "iter_mlp": "D"}
+    for k, ax in enumerate(axes[0]):
+        F0 = by[(TRACK[0], TM[0])][0]["final"]
+        tm, ts = F0["truth_mean"][k], F0["truth_sd"][k]
+        ax.axhline(tm, color="k", lw=0.6, ls=":", zorder=0)
+        ax.errorbar(0, tm, yerr=ts if ts > 1e-9 else None, fmt="_", ms=10, color="k", lw=1.6)
+        for i, e in enumerate(TRACK, start=1):
+            for j, m in enumerate(TM):
+                F = [r["final"] for r in by.get((e, m), [])]
+                if not F:
+                    continue
+                x = i + (j - (len(TM) - 1) / 2) * 0.25
+                ax.errorbar(x, np.mean([f["mean"][k] for f in F]), yerr=np.mean([f["sd"][k] for f in F]),
+                            fmt=MK[m], ms=4, color=COLOR[m], lw=1.4, mec="white", mew=0.5)
+        ax.set_xticks(range(len(TRACK) + 1))
+        ax.set_xticklabels(["truth"] + [DLAB[design[e]].replace(" ", "\n", 1) for e in TRACK], fontsize=6)
+        ax.set_title(names[k].replace("log_", "log "), fontsize=7, pad=2)
+        ax.tick_params(axis="y", labelsize=6, length=2)
+        for sp in ("top", "right"):
+            ax.spines[sp].set_visible(False)
+    from matplotlib.lines import Line2D
+    hs = [Line2D([], [], color="k", marker="_", ms=10, lw=1.6, label="true population")] + [
+        Line2D([], [], color=COLOR[m], marker=MK[m], ms=4, lw=1.4, label=LABEL[m]) for m in TM]
+    fig.legend(handles=hs, loc="upper center", ncol=len(hs), fontsize=7, frameon=False)
+    fig.tight_layout(rect=(0, 0, 1, 0.9))
+    fig.savefig(os.path.join(a.out, "tracking.pdf"))
+    fig.savefig(os.path.join(a.out, "tracking.png"), dpi=150)
     plt.close(fig)
 
 # ---- figure 4: population mean +- sd across cells, truth vs methods, every parameter
