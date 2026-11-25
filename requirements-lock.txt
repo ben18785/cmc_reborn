@@ -1,0 +1,9 @@
+# Pinned versions used on GitHub Actions; keep in sync with workflow/envs/cmc.yaml.
+numpy==2.5.5
+scipy==1.18.1
+scikit-learn==1.9.1
+pyvinecopulib==1.0.1
+matplotlib==3.11.2
+pyyaml==6.0.4
+snakemake==9.27.2
+pytest==9.2.0

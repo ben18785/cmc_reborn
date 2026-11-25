@@ -1,0 +1,75 @@
+"""Experiments for iterated, block-wise CMC.
+
+    snakemake --use-conda --cores 4                     # everything (slow; normally on Actions)
+    snakemake --use-conda --cores 1 summarise           # tables and figures from existing fits
+    snakemake --cores 2 --configfile config/smoke.yaml \
+        --config config_file=config/smoke.yaml results=results_smoke   # quick end-to-end check
+
+Fits run on GitHub Actions (.github/workflows/experiments.yml): one job per
+(example, method, seed), each running this Snakefile for its target; a final
+job merges the fits and runs `summarise`. Every number is in config/config.yaml.
+"""
+
+configfile: "config/config.yaml"
+
+ENV = "envs/cmc.yaml"
+CFG = config.get("config_file", "config/config.yaml")
+RES = config.get("results", "results")
+EXAMPLES = list(config["examples"])
+METHODS = list(config["methods"])
+SEEDS = config["seeds"]
+CODE = ["cmc/models.py", "cmc/infer.py", "cmc/ratio.py", "cmc/metrics.py"]
+
+
+rule all:
+    input:
+        RES + "/summary/table.md",
+
+
+rule data:
+    input:
+        code=CODE + ["workflow/scripts/make_data.py"],
+    output:
+        RES + "/data/{example}_seed{seed}.npz",
+    params:
+        cfg=CFG,
+    conda:
+        ENV
+    shell:
+        "PYTHONPATH=. python workflow/scripts/make_data.py --example {wildcards.example} "
+        "--seed {wildcards.seed} --config {params.cfg} --out {output}"
+
+
+rule fit:
+    input:
+        data=RES + "/data/{example}_seed{seed}.npz",
+        code=CODE + ["workflow/scripts/fit.py"],
+    output:
+        json=RES + "/fits/{example}/{method}_seed{seed}.json",
+        npz=RES + "/fits/{example}/{method}_seed{seed}.npz",
+    params:
+        cfg=CFG,
+    conda:
+        ENV
+    shell:
+        "PYTHONPATH=. python workflow/scripts/fit.py --example {wildcards.example} "
+        "--method {wildcards.method} --seed {wildcards.seed} --config {params.cfg} "
+        "--data {input.data} --out-json {output.json} --out-npz {output.npz}"
+
+
+rule summarise:
+    input:
+        fits=expand(RES + "/fits/{example}/{method}_seed{seed}.json", example=EXAMPLES, method=METHODS, seed=SEEDS),
+        data=expand(RES + "/data/{example}_seed{seed}.npz", example=EXAMPLES, seed=SEEDS),
+        code="workflow/scripts/summarise.py",
+    output:
+        RES + "/summary/table.md",
+        RES + "/summary/table.tex",
+    params:
+        cfg=CFG,
+        res=RES,
+    conda:
+        ENV
+    shell:
+        "PYTHONPATH=. python workflow/scripts/summarise.py --fits {params.res}/fits "
+        "--data {params.res}/data --config {params.cfg} --out {params.res}/summary"

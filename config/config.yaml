@@ -1,0 +1,54 @@
+# Every number that affects a result lives here.
+
+seeds: [1, 2, 3]
+
+examples:
+  scalar:
+    model: {}
+    n_cells: 4000          # cells per snapshot
+    holdout: []            # block indices not used for fitting (predictive check)
+    n_sweeps: 30
+  linear:                  # 24 snapshots x 2 markers, 5 parameters, identified population
+    model: {p: 5, n_blocks: 24, d: 2, sigma: 0.5}
+    n_cells: 2000
+    holdout: [5, 11, 17, 23]
+    n_sweeps: 20
+  growth:                  # 2 doses x 6 times x (log R, log P), log-normal measurement noise
+    model: {noise_sd: 0.1}
+    n_cells: 2000
+    holdout: [3, 9]        # t = 20 at both doses
+    n_sweeps: 20
+  gene:                    # 8 times x 3 genes, Poisson intrinsic noise + 30% capture
+    model: {capture: 0.3}
+    n_cells: 2000
+    holdout: [3, 6]        # t = 3 h and t = 8 h
+    n_sweeps: 20
+
+methods:
+  cmc_paper:               # original CMC: deterministic map, joint vine-KDE pushforward, one step
+    kind: one_step
+    noise: false
+  cmc_augmented:           # stochastic map via augmentation (Butler et al. 2020), one step
+    kind: one_step
+    noise: true
+  iter_kde:                # iterated, block-wise, KDE ratios
+    kind: iterate
+    ratio: kde
+  iter_logistic:           # iterated, block-wise, logistic regression on quadratic features
+    kind: iterate
+    ratio: logistic2
+  iter_mlp:                # iterated, block-wise, neural-network classifier
+    kind: iterate
+    ratio: mlp
+
+settings:                  # cmc.Settings defaults for every fit
+  n_particles: 20000
+  n_reps: 4
+  n_fit: 4000
+  ess_frac: 0.5
+  shrink: 0.95
+  clip: 8.0
+  step: 1.0
+  threads: 2
+  one_step_particles: 50000
+  n_truth: 20000           # population draws used to score parameter recovery

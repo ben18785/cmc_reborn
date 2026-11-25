@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.egg-info/
+.snakemake/
+results_smoke/
+results/data/
+results/fits/
+.pytest_cache/
+.DS_Store

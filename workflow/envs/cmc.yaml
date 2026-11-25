@@ -1,0 +1,14 @@
+# Pinned environment for every rule (rules put the package on PYTHONPATH).
+# Keep in sync with requirements-lock.txt, which GitHub Actions installs.
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - numpy==2.5.5
+      - scipy==1.18.1
+      - scikit-learn==1.9.1
+      - pyvinecopulib==1.0.1
+      - matplotlib==3.11.2
+      - pyyaml==6.0.4

@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cmc"
+version = "0.1.0"
+description = "Iterated, block-wise Contour Monte Carlo for stochastic forward maps and snapshot data"
+requires-python = ">=3.10"
+dependencies = ["numpy>=2.0", "scipy>=1.12", "scikit-learn>=1.5"]
+
+[project.optional-dependencies]
+vine = ["pyvinecopulib>=1.0"]
+plots = ["matplotlib>=3.8"]
+test = ["pytest>=8"]
+workflow = ["snakemake==9.27.2", "pyyaml>=6"]
+
+[tool.setuptools]
+packages = ["cmc"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = ["slow: statistical checks taking more than a few seconds"]
