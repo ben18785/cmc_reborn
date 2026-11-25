@@ -37,7 +37,7 @@ rule all:
 rule data:
     input:
         code=CODE + ["workflow/scripts/make_data.py"],
-        real=lambda w: C["examples"][w.example].get("data_csv", []),
+        real=lambda w: C["examples"][w.example].get("data_csv", C["examples"][w.example].get("data_tracks", [])),
     output:
         RES + "/data/{example}_seed{seed}.npz",
     params:
@@ -98,6 +98,9 @@ rule summarise:
         RES + "/summary/fish.pdf",
         RES + "/summary/fish.png",
         RES + "/summary/fish.tex",
+        RES + "/summary/transfection.pdf",
+        RES + "/summary/transfection.png",
+        RES + "/summary/transfection.tex",
         expand(RES + "/summary/marginals_{example}.pdf", example=["growth", "gene", "linear"]),
     params:
         cfg=CFG,

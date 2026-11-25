@@ -139,3 +139,26 @@ def test_count_classifier_recovers_discrete_ratio():
     truth = poisson.logpmf(grid[:, 0], 3) - poisson.logpmf(grid[:, 0], 5)
     lr = ClassifierRatio("logistic_bins", discrete=True).fit(data, sim).log_ratio(grid)
     assert np.max(np.abs(lr - truth)[1:8]) < 0.2  # counts 0 and 8 have only ~35-40 cells in one sample
+
+
+def test_transfection_models():
+    from cmc.models import Transfection, TransfectionSSA
+
+    rng = np.random.default_rng(4)
+    m = Transfection()
+    th = m.sample_population(500, rng)
+    q = m.simulate(th, rng)
+    assert q.shape == (500, 30) and np.isfinite(q).all()
+    # exact likelihood is Gaussian around the ODE solution; labels canonical: delta >= gamma
+    sw = th.copy()
+    sw[:, [0, 1]] = sw[:, [1, 0]]
+    assert np.allclose(m.block_log_lik(th, np.arange(30), q), m.block_log_lik(sw, np.arange(30), q))
+    assert (m.canonical(sw)[:, 0] >= m.canonical(sw)[:, 1]).all()
+    # Gillespie version: before t0 the cell shows only the offset
+    s = TransfectionSSA()
+    ts = s.sample_population(300, rng)
+    ts[:, 5] = np.log(20.0)  # transfection at 20 h
+    ts[:, 7] = np.log(1e-6)  # (almost) no measurement noise
+    y = s.simulate(ts, rng)
+    assert np.allclose(y[:, :19], np.log(np.exp(ts[:, 6:7])), atol=1e-4)
+    assert (y[:, -1] > y[:, 0]).mean() > 0.95

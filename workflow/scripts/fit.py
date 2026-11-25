@@ -107,7 +107,9 @@ elif meth["kind"] == "bayes":
 else:
     raise ValueError(meth["kind"])
 
-theta, logw = res["theta"], res["logw"]
+theta, logw = model.canonical(res["theta"]), res["logw"]
+if "pop_draws" in res:
+    res["pop_draws"] = np.array([model.canonical(P.astype(float)) for P in res["pop_draws"]], np.float32)
 m, C = weighted_moments(theta, logw)
 final = score(theta, logw, rng)
 final.update(

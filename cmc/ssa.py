@@ -8,13 +8,14 @@ from __future__ import annotations
 import numpy as np
 
 
-def ssa(x0, stoich, propensity, theta, times, rng):
+def ssa(x0, stoich, propensity, theta, times, rng, t_start=None):
     """Exact SSA for n cells.
 
     x0          (n, S) initial copy numbers
     stoich      (R, S) state change of each reaction
     propensity  f(x, theta) -> (n, R) reaction rates for states x (n, S), parameters theta (n, p)
     times       increasing observation times (> 0)
+    t_start     optional (n,) time at which each cell's reactions begin (state x0 until then)
     returns     (n, len(times), S) copy numbers at the observation times
     """
     times = np.asarray(times, float)
@@ -22,7 +23,7 @@ def ssa(x0, stoich, propensity, theta, times, rng):
     nt = len(times)
     stoich = np.asarray(stoich, np.int64)
     x = np.asarray(x0, np.int64).copy()
-    t = np.zeros(n)
+    t = np.zeros(n) if t_start is None else np.asarray(t_start, float).copy()
     nxt = np.zeros(n, int)
     out = np.empty((n, nt, S), np.int64)
     active = np.arange(n)

@@ -23,6 +23,15 @@ cfg = yaml.safe_load(open(a.config))
 ex = cfg["examples"][a.example]
 model = make_model(ex.get("kind", a.example), **ex["model"])
 rng = np.random.default_rng(1000 * a.seed + 17)
+if "data_tracks" in ex:  # real data (transfection): log fluorescence of each cell at the model's times
+    rows = [r for r in open(ex["data_tracks"]).read().splitlines() if not r.startswith("#")]
+    t = np.array([float(r.split(",")[0]) for r in rows[2:]])
+    Y = np.array([[float(x) for x in r.split(",")[1:]] for r in rows[2:]])
+    idx = [int(np.argmin(np.abs(t - tt))) for tt in model.meta["times"]]
+    assert np.allclose(t[idx], model.meta["times"], atol=0.01)
+    data = [np.log(Y[idx].T)]
+    np.savez_compressed(a.out, truth=np.zeros((0, model.p)), floor=np.full(len(data), np.nan), block0=data[0])
+    raise SystemExit
 if "data_csv" in ex:  # real data (fish functional response): one block per initial prey number
     import csv
 
@@ -34,7 +43,7 @@ if "data_csv" in ex:  # real data (fish functional response): one block per init
     raise SystemExit
 data = make_snapshot_data(model, ex["n_cells"], rng)
 replicate = make_snapshot_data(model, ex["n_cells"], rng)
-truth = model.sample_population({**cfg["settings"], **ex.get("settings", {})}["n_truth"], rng)
+truth = model.canonical(model.sample_population({**cfg["settings"], **ex.get("settings", {})}["n_truth"], rng))
 floor = []
 for d, r in zip(data, replicate):
     if model.discrete:

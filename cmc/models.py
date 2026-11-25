@@ -101,6 +101,10 @@ class Model:
         lat = self.latent(theta)
         return self.observe(lat, rng) if noise else lat
 
+    def canonical(self, theta: np.ndarray) -> np.ndarray:
+        """Map parameters to a canonical representative where the model has an exact symmetry."""
+        return theta
+
     # ---- data-generating population (overridden)
     def sample_population(self, n: int, rng: np.random.Generator) -> np.ndarray:
         raise NotImplementedError
@@ -543,6 +547,127 @@ class FunctionalResponse(Model):
         return np.column_stack([la, lr])
 
 
+# --------------------------------------------------------------------------
+# mRNA transfection (Fröhlich et al. 2018; the single-cell benchmark of Arruda et al. 2024).
+# Each cell is a tracked trajectory: log GFP fluorescence at 1, 2, ..., 30 h (one block).
+TF_TIMES = np.arange(1.0, 31.0)
+
+
+def _sort_rates(theta):
+    """The mean trajectory is symmetric in (delta, gamma): label so that delta >= gamma."""
+    th = np.array(theta, float, copy=True)
+    hi, lo = np.maximum(th[:, 0], th[:, 1]), np.minimum(th[:, 0], th[:, 1])
+    th[:, 0], th[:, 1] = hi, lo
+    return th
+
+
+def _relax(x, tau):
+    """(1 - exp(-x tau)) / x, stable as x -> 0."""
+    z = x * tau
+    small = np.abs(z) < 1e-8
+    return np.where(small, tau, -np.expm1(-np.where(small, 1.0, z)) / np.where(small, 1.0, x))
+
+
+class Transfection(Model):
+    """ODE model of Arruda et al. (2024, 'simple Fröhlich model'): after transfection at t0,
+    mRNA decays at rate delta and is translated into GFP, which decays at rate gamma:
+        p(t) = km0 exp(-gamma tau) (1 - exp(-(delta - gamma) tau)) / (delta - gamma),  tau = t - t0 > 0,
+    observed as log(p + offset) + N(0, sigma^2). theta = log(delta, gamma, km0, t0, offset, sigma).
+    p is symmetric in (delta, gamma), so the labels are fixed afterwards by delta >= gamma.
+    Prior: the normal prior of Arruda et al. Population for synthetic data: their 'true'
+    synthetic population (log-normal; offset and sigma shared)."""
+
+    def __init__(self, times=tuple(TF_TIMES)):
+        super().__init__(name="transfection", param_names=["log_delta", "log_gamma", "log_km0", "log_t0",
+                                                            "log_offset", "log_sigma"],
+                         lower=None, upper=None, prior_mean=np.array([-3.0, -3.0, 5.0, 0.0, 0.0, -1.0]),
+                         prior_sd=np.sqrt([5.0, 5.0, 11.0, 2.0, 6.0, 2.0]),
+                         blocks=[np.arange(len(times))], block_labels=["trajectory"],
+                         meta=dict(times=list(times)))
+        self.times = np.asarray(times, float)
+        self.pop_mean = np.array([-0.69364, -7.01357, 6.21662, -0.16357, 2.07944, -3.45388])
+        self.pop_var = np.array([0.94098, 7.01402, 0.00396, 0.11641, 0.0, 0.0])
+
+    def mean(self, theta):
+        d, g, km, t0, off = (np.exp(theta[:, k])[:, None] for k in range(5))
+        tau = np.maximum(self.times[None, :] - t0, 0.0)
+        lo, hi = np.minimum(d, g), np.maximum(d, g)  # symmetric in (delta, gamma): stable form
+        p = km * np.exp(-lo * tau) * _relax(hi - lo, tau)
+        return np.log(p + off)
+
+    def latent(self, theta):
+        """Noise-free outputs, plus the cell's noise sd as an extra last column."""
+        return np.hstack([self.mean(theta), np.exp(theta[:, 5:6])])
+
+    def observe_cols(self, latent, cols, rng):
+        return latent[:, cols] + latent[:, -1:] * rng.standard_normal((len(latent), len(cols)))
+
+    def observe(self, latent, rng):
+        return self.observe_cols(latent, np.arange(self.n_out), rng)
+
+    def simulate_cols(self, theta, cols, rng):
+        return self.observe_cols(self.latent(theta), cols, rng)
+
+    def block_log_lik(self, theta, cols, q):
+        mu = self.mean(theta)[:, cols]
+        s = np.exp(theta[:, 5:6])
+        return np.sum(-0.5 * ((q - mu) / s) ** 2 - np.log(s) - 0.5 * np.log(2 * np.pi), axis=1)
+
+    def canonical(self, theta):
+        return _sort_rates(theta)
+
+    def sample_population(self, n, rng):
+        return self.pop_mean + np.sqrt(self.pop_var) * rng.standard_normal((n, 6))
+
+
+class TransfectionSSA(SSAModel):
+    """Stochastic version (exact Gillespie; Arruda et al. use the chemical Langevin SDE): from
+    transfection at t0, m0 mRNA molecules decay (delta) and are translated (k) into protein, which
+    decays (gamma). Observed: log(scale P + offset) + N(0, sigma^2) at 1, ..., 30 h.
+    theta = log(delta, gamma, k, m0, scale, t0, offset, sigma). No tractable likelihood.
+    Prior: a box (bounds keep the number of reactions per simulation manageable). Synthetic
+    population: Arruda et al.'s 'true' SDE population, clipped to the box."""
+
+    stoich = np.array([[-1, 0], [0, 1], [0, -1]])  # (M, P): mRNA decay, translation, protein decay
+
+    def __init__(self, times=tuple(TF_TIMES)):
+        self.times = np.asarray(times, float)
+        self.obs_species, self.n_obs = [1], 1
+        Model.__init__(self, name="transfection_ssa",
+                       param_names=["log_delta", "log_gamma", "log_k", "log_m0", "log_scale", "log_t0",
+                                    "log_offset", "log_sigma"],
+                       lower=np.array([-4.0, -12.0, -3.0, 4.0, -2.0, -3.0, 0.0, -5.0]),
+                       upper=np.array([1.5, 0.0, 1.5, 6.5, 3.0, 2.0, 4.0, 0.0]),
+                       blocks=[np.arange(len(times))], block_labels=["trajectory"],
+                       meta=dict(times=list(times)))
+        self.pop_mean = np.array([-0.69364, -7.01357, 0.02702, 5.70375, 0.75142, -0.16357, 2.07944, -3.45388])
+        self.pop_var = np.array([0.94098, 7.01402, 0.67524, 6e-05, 0.0, 0.11641, 0.0, 0.0])
+
+    def x0(self, n):
+        return np.zeros((n, 2), np.int64)
+
+    @staticmethod
+    def propensity(x, r):
+        return np.stack([r[:, 0] * x[:, 0], r[:, 2] * x[:, 0], r[:, 1] * x[:, 1]], axis=1)
+
+    def observe_cols(self, latent, cols, rng):
+        cols = np.asarray(cols)
+        r = np.exp(latent)
+        x0 = self.x0(len(latent))
+        x0[:, 0] = np.rint(r[:, 3]).astype(np.int64)  # m0 molecules at t0
+        last = int(cols.max())
+        P = ssa(x0, self.stoich, self.propensity, r, self.times[:last + 1], rng, t_start=r[:, 5])[:, :, 1]
+        y = np.log(r[:, 4:5] * P[:, cols] + r[:, 6:7])
+        return y + r[:, 7:8] * rng.standard_normal(y.shape)
+
+    def sample_population(self, n, rng):
+        th = self.pop_mean + np.sqrt(self.pop_var) * rng.standard_normal((n, 8))
+        return np.clip(th, self.lower, self.upper)
+
+    def canonical(self, theta):
+        return _sort_rates(theta)
+
+
 MODELS = {
     "scalar": ScalarGaussian,
     "linear": LinearGaussian,
@@ -551,6 +676,8 @@ MODELS = {
     "bd_ssa": BirthDeathSSA,
     "feedback_ssa": FeedbackSSA,
     "fish": FunctionalResponse,
+    "transfection": Transfection,
+    "transfection_ssa": TransfectionSSA,
 }
 
 

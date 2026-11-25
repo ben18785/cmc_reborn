@@ -100,6 +100,24 @@ examples:
     holdout: []
     n_sweeps: 2
     methods: [iter_bins, bayes_gauss]
+  tf_egfp:
+    kind: transfection
+    experiment: transfection
+    data_tracks: data/transfection/eGFP.csv
+    model: {}
+    n_cells: 100
+    holdout: []
+    n_sweeps: 2
+    methods: [iter_logistic, bb_logistic, bayes_gauss]
+  tf_ssa_sim:
+    kind: transfection_ssa
+    experiment: transfection
+    model: {}
+    n_cells: 100
+    holdout: []
+    n_sweeps: 2
+    settings: {n_particles: 600, n_reps: 2}
+    methods: [iter_logistic, bayes_gauss_nre]
 methods:
   cmc_paper:               # original CMC: deterministic map, joint vine-KDE pushforward, one step
     kind: one_step

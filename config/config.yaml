@@ -174,6 +174,54 @@ examples:
     holdout: []
     n_sweeps: 30
     methods: [iter_logistic, iter_bins, iter_mlp, bb_bins, bayes_gauss, bayes_dpm]
+  # mRNA transfection (Fröhlich et al. 2018; benchmark of Arruda et al. 2024): every cell tracked,
+  # log GFP at 1, ..., 30 h (one 30-dimensional block). Real data: all 2565 eGFP and 2923 d2eGFP
+  # cells. Synthetic twins use Arruda et al.'s 'true' population with the eGFP cell count.
+  tf_sim:
+    kind: transfection
+    experiment: transfection
+    model: {}
+    n_cells: 2565
+    holdout: []
+    n_sweeps: 150
+    methods: [iter_logistic, iter_mlp, bb_logistic, bayes_gauss, bayes_gauss_nre]
+  tf_egfp:
+    kind: transfection
+    experiment: transfection
+    data_tracks: data/transfection/eGFP.csv
+    model: {}
+    n_cells: 2565
+    holdout: []
+    n_sweeps: 150
+    methods: [iter_logistic, iter_mlp, bb_logistic, bayes_gauss, bayes_gauss_nre]
+  tf_d2egfp:
+    kind: transfection
+    experiment: transfection
+    data_tracks: data/transfection/d2eGFP.csv
+    model: {}
+    n_cells: 2923
+    holdout: []
+    n_sweeps: 150
+    methods: [iter_logistic, iter_mlp, bb_logistic, bayes_gauss, bayes_gauss_nre]
+  tf_ssa_sim:
+    kind: transfection_ssa
+    experiment: transfection
+    model: {}
+    n_cells: 2565
+    holdout: []
+    n_sweeps: 100
+    settings: {n_particles: 10000, n_reps: 2}
+    methods: [iter_logistic, iter_mlp, bb_logistic_ssa, bayes_gauss_nre]
+  tf_ssa_egfp:
+    kind: transfection_ssa
+    experiment: transfection
+    data_tracks: data/transfection/eGFP.csv
+    model: {}
+    n_cells: 2565
+    holdout: []
+    n_sweeps: 100
+    settings: {n_particles: 10000, n_reps: 2}
+    methods: [iter_logistic, iter_mlp, bb_logistic_ssa, bayes_gauss_nre]
 methods:
   cmc_paper:               # original CMC: deterministic map, joint vine-KDE pushforward, one step
     kind: one_step

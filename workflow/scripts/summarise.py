@@ -362,11 +362,13 @@ if TRACK:
 # Each method stores S populations (posterior draws / bootstrap replicates; S = 1 for CMC). For every
 # quantity we take the population mean and the population sd (cell-to-cell spread) in each of them.
 BM = [m for m in ["iter_logistic", "bb_logistic", "bayes_gauss", "bayes_dpm", "bayes_dpm_nre"] if m in cfg["methods"]]
-BEX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") not in ("robustness", "ssa", "fish")
+BEX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") not in ("robustness", "ssa", "fish", "transfection")
        and any((e, m) in by for m in BM if cfg["methods"][m]["kind"] in ("bootstrap", "bayes"))]
 SSA_M = [m for m in ["iter_logistic", "iter_mlp", "bb_logistic_ssa", "bayes_gauss", "bayes_gauss_nre"] if m in cfg["methods"]]
 SSA_EX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") == "ssa" and any(k[0] == e for k in by)]
-PRETTY = {"log_RT": "log $R_T$", "log_k1": "log $k_1$", "log_km1": "log $k_{-1}$",
+PRETTY = {"log_delta": "log $\\delta$", "log_gamma": "log $\\gamma$", "log_km0": "log $k m_0$",
+          "log_t0": "log $t_0$", "log_offset": "log offset", "log_sigma": "log $\\sigma$", "log_k": "log $k$",
+          "log_m0": "log $m_0$", "log_scale": "log scale", "log_RT": "log $R_T$", "log_k1": "log $k_1$", "log_km1": "log $k_{-1}$",
           "log_kdeg": "log $k_\\mathrm{deg}$", "log_kdegs": "log $k_\\mathrm{degs}$"}
 def bayes_summary(BEX, BM, name):
     def quantities(e):
@@ -391,7 +393,8 @@ def bayes_summary(BEX, BM, name):
         for f in glob.glob(os.path.join(a.data, f"{e}_seed*.npz")):
             sd_ = int(f.rsplit("seed", 1)[1].split(".")[0])
             t = np.load(f)["truth"]
-            TR[(e, sd_)] = [(g(t).mean(), g(t).std()) for _, g in quantities(e)]
+            TR[(e, sd_)] = ([(g(t).mean(), g(t).std()) for _, g in quantities(e)] if len(t)
+                            else [(np.nan, np.nan) for _ in quantities(e)])  # real data: no truth
 
     def ci(x):
         return np.percentile(x, [2.5, 97.5]) if len(x) > 1 else np.array([x[0], x[0]])
@@ -405,6 +408,8 @@ def bayes_summary(BEX, BM, name):
             for r in rs:
                 st_, tr = S[(e, m, r["seed"])], TR[(e, r["seed"])]
                 for (mm, ss), (tm, ts) in zip(st_, tr):
+                    if np.isnan(tm):
+                        continue
                     lo, hi = ci(mm)
                     cov_m += lo <= tm <= hi
                     n_m += 1
@@ -417,9 +422,10 @@ def bayes_summary(BEX, BM, name):
             point = len(S[(e, m, rs[0]["seed"])][0][0]) == 1
             dims = rs[0]["n_out_fit"] // rs[0]["n_blocks_fit"]
             lab = f"{e.replace('_', ' ')} ({rs[0]['n_blocks_fit']}$\\times${dims})" if m == ms_[0] else ""
+            eds = [r["final"].get("ed_theta") for r in rs]
             lines.append(
-                f"{lab} & {LABEL[m]} & {np.mean([r['final']['ed_theta'] for r in rs]):.3f} & "
-                + ("-- & -- & " if point else f"{cov_m}/{n_m} & {cov_s}/{n_s} & ")
+                f"{lab} & {LABEL[m]} & " + (f"{np.mean(eds):.3f}" if eds[0] is not None else "--") + " & "
+                + ("-- & -- & " if point or not n_m else f"{cov_m}/{n_m} & {cov_s}/{n_s} & ")
                 + (f"{np.mean(upper_fixed):.2f}" if upper_fixed else "--")
                 + f" & {np.mean([(r['final'].get('n_solves') or 0) + (r['final'].get('n_solves_train') or 0) for r in rs]):.1e}"
                 + f" & {np.mean([r['final']['seconds'] for r in rs]) / 60:.1f} \\\\"
@@ -444,7 +450,8 @@ def bayes_summary(BEX, BM, name):
                 continue
             for si, sd_ in enumerate(seeds):
                 ts = TR[(e, sd_)][k][1]
-                ax.plot([-0.5, len(ms_) - 0.5], [ts, ts], color="k", lw=0.6, ls=":", zorder=0)
+                if not np.isnan(ts):
+                    ax.plot([-0.5, len(ms_) - 0.5], [ts, ts], color="k", lw=0.6, ls=":", zorder=0)
                 for j, m in enumerate(ms_):
                     if (e, m, sd_) not in S:
                         continue
@@ -476,6 +483,11 @@ if BEX:
     bayes_summary(BEX, BM, "bayes")
 if SSA_EX:
     bayes_summary(SSA_EX, SSA_M, "ssa")
+TF_EX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") == "transfection" and any(k[0] == e for k in by)]
+TF_M = [m for m in ["iter_logistic", "iter_mlp", "bb_logistic", "bb_logistic_ssa", "bayes_gauss", "bayes_gauss_nre"]
+        if m in cfg["methods"]]
+if TF_EX:
+    bayes_summary(TF_EX, TF_M, "transfection")
 
 # ---- figure 9 + table: robustness tests on the gene example
 # test 1 (gene_truth): every method starts at the true population; distance to it over the run.
