@@ -168,6 +168,49 @@ for e, params in [("growth", [0, 1]), ("gene", [0, 3]), ("linear", [0, 1])]:
     fig.savefig(os.path.join(a.out, f"marginals_{e}.pdf"))
     plt.close(fig)
 
+# ---- figure 5 + table: growth example, the two parameter combinations the snapshots identify
+# names: log_RT, log_k1, log_km1, log_kdeg, log_kdegs
+COMBOS = [("$\\log(k_1/k_{-1})$ (binding affinity)", lambda x: x[:, 1] - x[:, 2]),
+          ("$\\log(R_T k_\\mathrm{deg})$ (receptor synthesis)", lambda x: x[:, 0] + x[:, 3])]
+CM = [m for m in ["cmc_paper", "iter_logistic", "iter_mlp"] if ("growth", m) in by]
+if CM:
+    seeds = sorted(r["seed"] for r in by[("growth", CM[0])])
+    truth = {sd: np.load(os.path.join(a.data, f"growth_seed{sd}.npz"))["truth"] for sd in seeds}
+    draws = {(m, sd): np.load(os.path.join(a.fits, "growth", f"{m}_seed{sd}.npz"))["draws"]
+             for m in CM for sd in seeds}
+    rows_c = []
+    for lab, f in COMBOS:
+        t = [f(truth[sd]) for sd in seeds]
+        cells = [f"{np.mean([x.mean() for x in t]):.2f} $\\pm$ {np.mean([x.std() for x in t]):.2f}"]
+        for m in CM:
+            v = [f(draws[(m, sd)]) for sd in seeds]
+            cells.append(f"{np.mean([x.mean() for x in v]):.2f} $\\pm$ {np.mean([x.std() for x in v]):.2f}")
+        rows_c.append(lab.split(" (")[0] + " & " + " & ".join(cells) + " \\\\")
+    open(os.path.join(a.out, "combos_growth.tex"), "w").write(
+        "\\begin{tabular}{l" + "c" * (len(CM) + 1) + "}\n\\toprule\n"
+        "& true population & " + " & ".join(LABEL[m] for m in CM) + " \\\\\n\\midrule\n"
+        + "\n".join(rows_c) + "\n\\bottomrule\n\\end{tabular}\n")
+    sd0 = seeds[0]
+    fig, axes = plt.subplots(1, 2, figsize=(6.4, 2.6))
+    for ax, (lab, f) in zip(axes, COMBOS):
+        t = f(truth[sd0])
+        lo, hi = np.percentile(t, [0.5, 99.5])
+        w = hi - lo
+        bins = np.linspace(lo - 0.6 * w, hi + 0.6 * w, 50)
+        ax.hist(t, bins=bins, density=True, color="k", alpha=0.25, label="true population")
+        for m in CM:
+            ax.hist(f(draws[(m, sd0)]), bins=bins, density=True, histtype="step", color=COLOR[m], lw=1.4,
+                    label=LABEL[m])
+        ax.set_xlabel(lab, fontsize=8)
+        ax.set_yticks([])
+        for sp in ("top", "right", "left"):
+            ax.spines[sp].set_visible(False)
+    axes[0].legend(fontsize=6, frameon=False, loc="upper left")
+    fig.tight_layout()
+    fig.savefig(os.path.join(a.out, "combos_growth.pdf"))
+    fig.savefig(os.path.join(a.out, "combos_growth.png"), dpi=150)
+    plt.close(fig)
+
 # ---- figure 4: population mean +- sd across cells, truth vs methods, every parameter
 PM = [m for m in ["cmc_paper", "iter_logistic", "iter_mlp"] if m in METHODS]
 MARK = {"cmc_paper": "s", "iter_logistic": "o", "iter_mlp": "D"}
