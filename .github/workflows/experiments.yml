@@ -55,8 +55,8 @@ jobs:
       - run: pip install -r requirements-lock.txt && pip install -e .
       - name: fit
         run: |
-          snakemake --cores 2 --configfile ${{ inputs.config }} --config config_file=${{ inputs.config }} \
-            results/fits/${{ matrix.example }}/${{ matrix.method }}_seed${{ matrix.seed }}.json
+          snakemake results/fits/${{ matrix.example }}/${{ matrix.method }}_seed${{ matrix.seed }}.json \
+            --cores 2 --configfile ${{ inputs.config }} --config config_file=${{ inputs.config }}
       - uses: actions/upload-artifact@v4
         with:
           name: fit-${{ matrix.name }}
@@ -67,6 +67,7 @@ jobs:
     needs: fit
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -81,8 +82,7 @@ jobs:
       - name: summarise
         run: |
           find results -type f | head -50
-          snakemake --cores 1 --configfile ${{ inputs.config }} --config config_file=${{ inputs.config }} \
-            --rerun-triggers mtime --keep-going summarise || \
+          # fits come from the artifacts; never rerun them here
           PYTHONPATH=. python workflow/scripts/summarise.py --fits results/fits --data results/data \
             --config ${{ inputs.config }} --out results/summary
           cat results/summary/table.md >> "$GITHUB_STEP_SUMMARY"

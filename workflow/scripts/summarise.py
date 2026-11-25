@@ -67,7 +67,7 @@ for e in EXAMPLES:
             fit_rel=[np.mean(f["ed_fit"]) / f["floor_fit"] for f in F],
             hold_rel=[np.mean(f["ed_holdout"]) / f["floor_holdout"] for f in F] if F[0].get("floor_holdout") else None,
             het=[het_ratio(f) for f in F],
-            cov=[cov_err(f) for f in F],
+            cov=[cov_err(f) for f in F] if e in ("scalar", "linear") else None,
             ess=[f["ess"] for f in F],
             secs=[f["seconds"] for f in F],
         ))
@@ -78,10 +78,10 @@ tex = []
 for r in rows:
     hold = ms(r["hold_rel"]) if r["hold_rel"] else "–"
     md += (f"| {r['example']} | {r['dims']} ({r['blocks']}) | {LABEL[r['method']]} | {ms(r['ed_theta'])} | "
-           f"{ms(r['fit_rel'])} | {hold} | {ms(r['het'])} | {ms(r['cov'])} | {np.mean(r['secs'])/60:.1f} |\n")
+           f"{ms(r['fit_rel'])} | {hold} | {ms(r['het'])} | {ms(r['cov']) if r['cov'] else '–'} | {np.mean(r['secs'])/60:.1f} |\n")
     f2 = lambda xs: f"{np.mean(xs):.2f}"
     tex.append(f"{r['example']} & {LABEL[r['method']]} & {np.mean(r['ed_theta']):.3f} & {f2(r['fit_rel'])} & "
-               f"{f2(r['hold_rel']) if r['hold_rel'] else '--'} & {f2(r['het'])} & {f2(r['cov'])} \\\\")
+               f"{f2(r['hold_rel']) if r['hold_rel'] else '--'} & {f2(r['het'])} & {f2(r['cov']) if r['cov'] else '--'} \\\\")
 open(os.path.join(a.out, "table.md"), "w").write(
     md + "\nθ energy distance: posterior vs true population (parameters scaled by prior sd). "
     "ED / floor: mean energy distance between observed and predicted snapshots divided by the distance "
