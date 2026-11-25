@@ -53,6 +53,12 @@ COLOR.update({"iter_bins": "#1baf7a", "bb_bins": "#8fd8b8", "bb_logistic_ssa": C
               "bayes_gauss_nre_truth": "#4d4d4d", "bayes_gauss_nre_small_truth": "#b0b0b0"})
 
 
+def pop_draws(e, m, sd_):
+    """(S, n, p) populations of a fit; fits made before pop_draws existed have one, `draws`."""
+    z = np.load(os.path.join(a.fits, e, f"{m}_seed{sd_}.npz"))
+    return (z["pop_draws"] if "pop_draws" in z else z["draws"][None]).astype(float)
+
+
 def het_ratio(f):
     """Mean posterior sd / true sd over parameters that vary in the population."""
     sd, tsd = np.array(f["sd"]), np.array(f["truth_sd"])
@@ -372,7 +378,7 @@ def bayes_summary(BEX, BM, name):
         return q
 
     def stats(e, m, sd_):
-        P = np.load(os.path.join(a.fits, e, f"{m}_seed{sd_}.npz"))["pop_draws"].astype(float)
+        P = pop_draws(e, m, sd_)
         return [(f(P).mean(1), f(P).std(1)) for _, f in quantities(e)]
 
     S = {}
@@ -478,7 +484,7 @@ ROB = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") == "ro
 if ROB:
     def pop_cover(e, m, sd_):
         """fractions of parameters whose 95% interval covers the true population mean / sd"""
-        P = np.load(os.path.join(a.fits, e, f"{m}_seed{sd_}.npz"))["pop_draws"].astype(float)
+        P = pop_draws(e, m, sd_)
         if len(P) < 2:
             return None
         t = np.load(os.path.join(a.data, f"{e}_seed{sd_}.npz"))["truth"]
@@ -594,7 +600,7 @@ if FEX:
             rs = by.get((e, m), [])
             if not rs:
                 continue
-            P = np.load(os.path.join(a.fits, e, f"{m}_seed{rs[0]['seed']}.npz"))["pop_draws"].astype(float)
+            P = pop_draws(e, m, rs[0]["seed"])
             v, mr, sr = fstats(P)
             ed = [r["final"].get("ed_theta") for r in rs]
             ed = f"{np.mean(ed):.3f}" if ed[0] is not None else "--"
