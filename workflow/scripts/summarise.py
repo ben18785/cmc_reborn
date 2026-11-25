@@ -211,6 +211,68 @@ if CM:
     fig.savefig(os.path.join(a.out, "combos_growth.png"), dpi=150)
     plt.close(fig)
 
+# ---- figure 6: examples with an exact answer, analytic densities vs inferred populations (one data set)
+from scipy.stats import norm
+from cmc.gaussian import linear_rl_path as _lpath
+if all(("scalar", m) in by for m in ["cmc_paper", "cmc_augmented", "iter_logistic", "iter_mlp"]) and \
+        all(("linear", m) in by for m in ["iter_logistic", "iter_mlp"]):
+    sm = make_model("scalar", **cfg["examples"]["scalar"]["model"])
+    s2, mu, tv, pv = sm.sigma**2, sm.pop_mean, sm.pop_sd**2 + sm.sigma**2, sm.meta["prior_var"]
+    Ks = cfg["examples"]["scalar"]["n_sweeps"]
+    sp = scalar_rl_path(0.0, pv, s2, mu, tv, Ks)
+    exact_s = {"cmc_paper": (mu, tv), "cmc_augmented": tuple(sp[0]),
+               "iter_logistic": tuple(sp[-1]), "iter_mlp": tuple(sp[-1])}
+    lex = cfg["examples"]["linear"]
+    lm = make_model("linear", **lex["model"])
+    fitb = [j for j in range(len(lm.blocks)) if j not in lex["holdout"]]
+    rng_o = np.random.default_rng(0)
+    lmean, lV = _lpath(lm, lambda _s: rng_o.permutation(fitb), lex["n_sweeps"])[-1]
+    seed0 = sorted(r["seed"] for r in by[("scalar", "iter_logistic")])[0]
+    dr = lambda e, m: np.load(os.path.join(a.fits, e, f"{m}_seed{seed0}.npz"))["draws"]
+    p_lin = len(lmean)
+    ncol = max(4, p_lin)
+    fig, axes = plt.subplots(2, ncol, figsize=(1.6 * ncol, 4.0), squeeze=False)
+    # row 1: scalar, one panel per method, each against its own exact answer
+    for ax, m in zip(axes[0], ["cmc_paper", "cmc_augmented", "iter_logistic", "iter_mlp"]):
+        em, ev = exact_s[m]
+        x = np.linspace(mu - 5, mu + 5, 400)
+        ax.hist(dr("scalar", m)[:, 0], bins=np.linspace(x[0], x[-1], 45), density=True,
+                color=COLOR[m], alpha=0.55, label="inferred")
+        ax.plot(x, norm.pdf(x, em, np.sqrt(ev)), "k-", lw=1.3, label="exact")
+        ax.plot(x, norm.pdf(x, mu, sm.pop_sd), color="k", ls=":", lw=1, label="true population")
+        ax.set_title(LABEL[m], fontsize=7, pad=2)
+        ax.set_xlabel("θ", fontsize=7)
+    for ax in axes[0][4:]:
+        ax.axis("off")
+    h, l = axes[0][0].get_legend_handles_labels()
+    axes[0][4 if ncol > 4 else 3].legend(h, ["inferred (method colour)", "exact answer for that method",
+                                             "true population"], fontsize=6, frameon=False, loc="center left")
+    # row 2: linear, exact block-wise limit vs both classifier fits, per parameter
+    for k in range(ncol):
+        ax = axes[1][k]
+        if k >= p_lin:
+            ax.axis("off")
+            continue
+        sd_k = np.sqrt(lV[k, k])
+        x = np.linspace(lmean[k] - 4 * sd_k, lmean[k] + 4 * sd_k, 400)
+        for m in ["iter_logistic", "iter_mlp"]:
+            ax.hist(dr("linear", m)[:, k], bins=np.linspace(x[0], x[-1], 35), density=True, histtype="step",
+                    color=COLOR[m], lw=1.4, label=LABEL[m])
+        ax.plot(x, norm.pdf(x, lmean[k], sd_k), "k-", lw=1.3, label="exact")
+        ax.set_xlabel(f"θ{k + 1}", fontsize=7)
+    axes[1][0].legend(fontsize=6, frameon=False, loc="upper left")
+    for ax in axes.ravel():
+        ax.set_yticks([])
+        ax.tick_params(labelsize=6, length=2)
+        for side in ("top", "right", "left"):
+            ax.spines[side].set_visible(False)
+    axes[0][0].set_ylabel("scalar", fontsize=8, fontweight="bold")
+    axes[1][0].set_ylabel("linear", fontsize=8, fontweight="bold")
+    fig.tight_layout()
+    fig.savefig(os.path.join(a.out, "exact.pdf"))
+    fig.savefig(os.path.join(a.out, "exact.png"), dpi=150)
+    plt.close(fig)
+
 # ---- figure 4: population mean +- sd across cells, truth vs methods, every parameter
 PM = [m for m in ["cmc_paper", "iter_logistic", "iter_mlp"] if m in METHODS]
 MARK = {"cmc_paper": "s", "iter_logistic": "o", "iter_mlp": "D"}

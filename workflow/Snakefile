@@ -72,6 +72,8 @@ rule summarise:
         RES + "/summary/combos_growth.pdf",
         RES + "/summary/combos_growth.png",
         RES + "/summary/combos_growth.tex",
+        RES + "/summary/exact.pdf",
+        RES + "/summary/exact.png",
         expand(RES + "/summary/marginals_{example}.pdf", example=["growth", "gene", "linear"]),
     params:
         cfg=CFG,
