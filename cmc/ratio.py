@@ -92,12 +92,20 @@ class ClassifierRatio:
             )
         raise ValueError(self.kind)
 
-    def fit(self, data, sim):
+    def fit(self, data, sim, weight=None):
+        """`weight`: optional per-cell weights on the data (mean 1), e.g. Bayesian bootstrap."""
         x1 = _features(data, self.discrete)
         x0 = _features(sim, self.discrete)
         X = np.vstack([x1, x0])
         y = np.r_[np.ones(len(x1)), np.zeros(len(x0))]
-        self.clf = self._make().fit(X, y)
+        clf = self._make()
+        kw = {}
+        if weight is not None:
+            if self.kind != "logistic2":
+                raise ValueError("data weights are supported for logistic2 only")
+            w = np.asarray(weight, float)
+            kw[clf.steps[-1][0] + "__sample_weight"] = np.r_[w * len(w) / w.sum(), np.ones(len(x0))]
+        self.clf = clf.fit(X, y, **kw)
         self.offset = np.log(len(x0) / len(x1))
         return self
 

@@ -12,16 +12,21 @@ job merges the fits and runs `summarise`. Every number is in config/config.yaml.
 
 configfile: "config/config.yaml"
 
+import yaml
+
 ENV = "envs/cmc.yaml"
 CFG = config.get("config_file", "config/config.yaml")
 RES = config.get("results", "results")
-EXAMPLES = list(config["examples"])
-METHODS = list(config["methods"])
-SEEDS = config["seeds"]
+# read the experiment from CFG itself: --configfile merges nested keys into config.yaml,
+# which would leak the main examples into a smoke run
+C = yaml.safe_load(open(CFG))
+EXAMPLES = list(C["examples"])
+METHODS = list(C["methods"])
+SEEDS = C["seeds"]
 # an example may restrict its methods with `methods: [...]`
 FITS = [RES + f"/fits/{e}/{m}_seed{s}.json" for e in EXAMPLES
-        for m in config["examples"][e].get("methods", METHODS) for s in SEEDS]
-CODE = ["cmc/models.py", "cmc/infer.py", "cmc/ratio.py", "cmc/metrics.py"]
+        for m in C["examples"][e].get("methods", METHODS) for s in SEEDS]
+CODE = ["cmc/models.py", "cmc/infer.py", "cmc/ratio.py", "cmc/metrics.py", "cmc/bayes.py"]
 
 
 rule all:
@@ -80,6 +85,9 @@ rule summarise:
         RES + "/summary/tracking.pdf",
         RES + "/summary/tracking.png",
         RES + "/summary/tracking.tex",
+        RES + "/summary/bayes.pdf",
+        RES + "/summary/bayes.png",
+        RES + "/summary/bayes.tex",
         expand(RES + "/summary/marginals_{example}.pdf", example=["growth", "gene", "linear"]),
     params:
         cfg=CFG,

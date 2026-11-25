@@ -8,21 +8,25 @@ examples:
     n_cells: 4000          # cells per snapshot
     holdout: []            # block indices not used for fitting (predictive check)
     n_sweeps: 30
+    methods: [cmc_paper, cmc_augmented, iter_kde, iter_logistic, iter_mlp]
   linear:                  # 24 snapshots x 2 markers, 5 parameters, identified population
     model: {p: 5, n_blocks: 24, d: 2, sigma: 0.5}
     n_cells: 2000
     holdout: [5, 11, 17, 23]
     n_sweeps: 20
+    methods: [cmc_paper, cmc_augmented, iter_kde, iter_logistic, iter_mlp]
   growth:                  # 2 doses x 6 times x (log R, log P), log-normal measurement noise
     model: {noise_sd: 0.1}
     n_cells: 2000
     holdout: [3, 9]        # t = 20 at both doses
     n_sweeps: 20
+    methods: [cmc_paper, cmc_augmented, iter_kde, iter_logistic, iter_mlp]
   gene:                    # 8 times x 3 genes, Poisson intrinsic noise + 30% capture
     model: {capture: 0.3}
     n_cells: 2000
     holdout: [3, 6]        # t = 3 h and t = 8 h
     n_sweeps: 20
+    methods: [cmc_paper, cmc_augmented, iter_kde, iter_logistic, iter_mlp]
   # Tracking experiment: the same growth-factor population, measured destructively
   # (snapshot), on the same cells at consecutive times (pairs), or at every time
   # (tracked, e.g. live-cell imaging). 2000 cells per block, nothing held out; sweeps
@@ -33,7 +37,7 @@ examples:
     n_cells: 2000
     holdout: []
     n_sweeps: 20
-    methods: [iter_logistic, iter_mlp]
+    methods: [iter_logistic, iter_mlp, bb_logistic, bayes_gauss, bayes_dpm, bayes_dpm_nre]
   growth_pairs:
     kind: growth
     model: {noise_sd: 0.1, design: pairs}      # 10 overlapping blocks x 4 dims
@@ -47,7 +51,16 @@ examples:
     n_cells: 2000
     holdout: []
     n_sweeps: 120
-    methods: [iter_logistic, iter_mlp]
+    methods: [iter_logistic, iter_mlp, bb_logistic, bayes_gauss, bayes_dpm, bayes_dpm_nre]
+  # Bayesian comparison (also run on growth_snapshot and growth_tracked above): the linear
+  # example with every snapshot fitted, so the hierarchical model sees the same data as CMC
+  linear_bayes:
+    kind: linear
+    model: {p: 5, n_blocks: 24, d: 2, sigma: 0.5}
+    n_cells: 2000
+    holdout: []
+    n_sweeps: 20
+    methods: [iter_logistic, bb_logistic, bayes_gauss, bayes_dpm, bayes_dpm_nre]
 
 methods:
   cmc_paper:               # original CMC: deterministic map, joint vine-KDE pushforward, one step
@@ -65,6 +78,36 @@ methods:
   iter_mlp:                # iterated, block-wise, neural-network classifier
     kind: iterate
     ratio: mlp
+  bb_logistic:             # Bayesian bootstrap of iter_logistic (Dirichlet weights on observed cells)
+    kind: bootstrap
+    ratio: logistic2
+    n_boot: 20
+  bayes_gauss:             # hierarchical model, Gaussian population (standard mixed effects), exact likelihood
+    kind: bayes
+    lik: exact
+    n_comp: 1
+  bayes_dpm:               # hierarchical model, Dirichlet-process mixture population, exact likelihood
+    kind: bayes
+    lik: exact
+    n_comp: 10
+    alpha: 1.0
+  bayes_dpm_nre:           # as bayes_dpm, likelihood-free (neural ratio estimator per block)
+    kind: bayes
+    lik: nre
+    n_comp: 10
+    alpha: 1.0
+
+bayes:                     # cmc.bayes.BayesSettings for every Bayesian fit
+  n_burn: 3000
+  n_keep: 2000
+  thin: 10
+  n_pop: 1000
+  sigma_scale: 0.25
+  nu_extra: 3.0
+  n_init: 500
+  nre_train: 40000
+  nre_rounds: 3
+  nre_hidden: [128, 128]
 
 settings:                  # cmc.Settings defaults for every fit
   n_particles: 20000
@@ -77,3 +120,4 @@ settings:                  # cmc.Settings defaults for every fit
   threads: 2
   one_step_particles: 50000
   n_truth: 20000           # population draws used to score parameter recovery
+  n_pop: 1000              # population draws stored per posterior draw / bootstrap replicate

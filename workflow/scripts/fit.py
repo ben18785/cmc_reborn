@@ -1,7 +1,9 @@
 """Fit one (example, method, seed) and score it.
 
-Outputs a JSON (settings, per-sweep history, final metrics) and an npz of
-1000 posterior draws (resampled by weight)."""
+Outputs a JSON (settings, per-sweep history, final metrics) and an npz with
+`draws` (1000 draws of the fitted population; for the Bayesian methods, pooled
+over the posterior) and `pop_draws` (S x n x p: one population per posterior
+draw or bootstrap replicate; S = 1 for the point-estimate methods)."""
 import argparse
 import json
 
@@ -9,6 +11,7 @@ import yaml
 
 import numpy as np
 
+from cmc.bayes import BayesSettings, fit_hierarchical
 from cmc.infer import Settings, ess, iterate_blocks, one_step_joint, weighted_moments
 from cmc.metrics import block_discrepancies, energy_distance, resample
 from cmc.models import make_model
@@ -65,10 +68,41 @@ if meth["kind"] == "one_step":
                  noise=meth["noise"], **common)
     res = one_step_joint(model, data, fit_blocks, s)
     res["history"][0].update(callback(res["theta"], res["logw"], rng))
-else:
+elif meth["kind"] == "iterate":
     s = Settings(ratio=meth["ratio"], n_particles=st["n_particles"], n_sweeps=ex["n_sweeps"],
                  noise=True, **common)
     res = iterate_blocks(model, data, fit_blocks, s, callback=callback)
+elif meth["kind"] == "bootstrap":
+    # Bayesian bootstrap (Rubin 1981) of the iteration: Dirichlet(1,...,1) weights on the
+    # observed cells of every block, one full iterated fit per replicate
+    common_b = {k: v for k, v in common.items() if k != "seed"}
+    pops, hist, t_tot = [], [], 0.0
+    for b in range(meth["n_boot"]):
+        wts = {j: rng.exponential(size=len(data[j])) for j in fit_blocks}
+        wts = {j: v / v.mean() for j, v in wts.items()}
+        s = Settings(ratio=meth["ratio"], n_particles=st["n_particles"], n_sweeps=ex["n_sweeps"],
+                     noise=True, seed=1000 * a.seed + b, **common_b)
+        r_b = iterate_blocks(model, data, fit_blocks, s, data_weights=wts)
+        pops.append(resample(r_b["theta"], r_b["logw"], st["n_pop"], rng).astype(np.float32))
+        t_tot += r_b["history"][-1]["seconds"]
+        n_sol = (hist[-1]["n_solves"] if hist else 0) + r_b["history"][-1]["n_solves"]
+        hist.append(dict(replicate=b, mean=r_b["history"][-1]["mean"], sd=r_b["history"][-1]["sd"],
+                         seconds=t_tot, n_solves=n_sol))
+    pop_draws = np.array(pops)
+    pooled = pop_draws.reshape(-1, model.p).astype(float)
+    res = dict(theta=pooled, logw=np.full(len(pooled), -np.log(len(pooled))), history=hist,
+               pop_draws=pop_draws)
+elif meth["kind"] == "bayes":
+    bs = BayesSettings(lik=meth["lik"], n_comp=meth["n_comp"], alpha=meth.get("alpha", 1.0),
+                       seed=a.seed, **cfg["bayes"])
+    s = bs
+    r_b = fit_hierarchical(model, data, fit_blocks, bs, callback=callback)
+    pooled = r_b["pop_draws"].reshape(-1, model.p).astype(float)
+    res = dict(theta=pooled, logw=np.full(len(pooled), -np.log(len(pooled))), pop_draws=r_b["pop_draws"],
+               history=r_b["history"] + [dict(seconds=r_b["seconds"], n_solves=r_b["n_solves"],
+                                              n_solves_train=r_b["n_solves_train"])])
+else:
+    raise ValueError(meth["kind"])
 
 theta, logw = res["theta"], res["logw"]
 m, C = weighted_moments(theta, logw)
@@ -84,10 +118,15 @@ final.update(
     floor_fit=float(np.mean(floor[fit_blocks])),
     floor_holdout=float(np.mean(floor[hold_blocks])) if hold_blocks else None,
     seconds=res["history"][-1]["seconds"],
+    n_solves=res["history"][-1].get("n_solves"),
+    n_solves_train=res["history"][-1].get("n_solves_train", 0),
 )
 out = dict(example=a.example, method=a.method, seed=a.seed, settings=s.to_dict(),
            param_names=model.param_names, n_out_fit=int(sum(len(model.blocks[j]) for j in fit_blocks)),
            n_blocks_fit=len(fit_blocks), history=res["history"], final=final)
 with open(a.out_json, "w") as f:
     json.dump(out, f, indent=1)
-np.savez_compressed(a.out_npz, draws=resample(theta, logw, 1000, rng))
+pop_draws = res.get("pop_draws")
+if pop_draws is None:
+    pop_draws = resample(theta, logw, st["n_pop"], rng)[None].astype(np.float32)
+np.savez_compressed(a.out_npz, draws=resample(theta, logw, 1000, rng), pop_draws=pop_draws)

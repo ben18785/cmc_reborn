@@ -74,6 +74,15 @@ class Model:
     def observe(self, latent: np.ndarray, rng: np.random.Generator) -> np.ndarray:
         raise NotImplementedError
 
+    def latent_cols(self, theta: np.ndarray, cols) -> np.ndarray:
+        """latent(theta)[:, cols]; models may override to compute only those outputs."""
+        return self.latent(theta)[:, cols]
+
+    def log_lik(self, latent: np.ndarray, q: np.ndarray) -> np.ndarray:
+        """log K(q | theta) given latent(theta), summed over the last axis (broadcasts).
+        Only needed by the exact-likelihood Bayesian sampler (cmc.bayes)."""
+        raise NotImplementedError
+
     def simulate(self, theta, rng, noise=True):
         lat = self.latent(theta)
         return self.observe(lat, rng) if noise else lat
@@ -109,6 +118,10 @@ class ScalarGaussian(Model):
 
     def observe(self, latent, rng):
         return latent + self.sigma * rng.standard_normal(latent.shape)
+
+    def log_lik(self, latent, q):
+        s = self.sigma
+        return np.sum(-0.5 * ((q - latent) / s) ** 2 - np.log(s) - 0.5 * np.log(2 * np.pi), axis=-1)
 
     def sample_population(self, n, rng):
         return self.pop_mean + self.pop_sd * rng.standard_normal((n, 1))
@@ -152,6 +165,10 @@ class LinearGaussian(Model):
 
     def observe(self, latent, rng):
         return latent + self.sigma * rng.standard_normal(latent.shape)
+
+    def log_lik(self, latent, q):
+        s = self.sigma
+        return np.sum(-0.5 * ((q - latent) / s) ** 2 - np.log(s) - 0.5 * np.log(2 * np.pi), axis=-1)
 
     def sample_population(self, n, rng):
         return rng.multivariate_normal(self.mu, self.Sigma, size=n)
@@ -241,6 +258,21 @@ class GrowthFactor(Model):
     def observe(self, latent, rng):
         return latent + self.noise_sd * rng.standard_normal(latent.shape)
 
+    def log_lik(self, latent, q):
+        s = self.noise_sd
+        return np.sum(-0.5 * ((q - latent) / s) ** 2 - np.log(s) - 0.5 * np.log(2 * np.pi), axis=-1)
+
+    def latent_cols(self, theta, cols):
+        cols = np.asarray(cols)
+        RT, k1, km1, kdeg, kdegs = np.exp(theta).T
+        full = {}
+        for k in sorted({int(c) // 2 for c in cols}):
+            L, t = self.conds[k]
+            R, P = _linear2_solution(k1 * L + kdeg, km1, k1 * L, km1 + kdegs, RT * kdeg, t)
+            full[2 * k] = np.log(np.maximum(R, 1e-12))
+            full[2 * k + 1] = np.log(np.maximum(P, 1e-12))
+        return np.stack([full[int(c)] for c in cols], axis=1)
+
     def sample_population(self, n, rng):
         return self.pop_mean + self.pop_sd * rng.standard_normal((n, self.p))
 
@@ -286,6 +318,10 @@ class GeneExpression(Model):
 
     def observe(self, latent, rng):
         return rng.poisson(latent).astype(float)
+
+    def log_lik(self, latent, q):
+        from scipy.special import gammaln
+        return np.sum(q * np.log(latent) - latent - gammaln(q + 1), axis=-1)
 
     def sample_population(self, n, rng):
         return rng.multivariate_normal(self.pop_mean, self.pop_cov, size=n)

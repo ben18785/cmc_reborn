@@ -8,21 +8,39 @@ examples:
     n_cells: 300          # cells per snapshot
     holdout: []            # block indices not used for fitting (predictive check)
     n_sweeps: 2
+    methods: [cmc_paper, cmc_augmented, iter_kde, iter_logistic, iter_mlp]
   linear:                  # 24 snapshots x 2 markers, 5 parameters, identified population
     model: {p: 5, n_blocks: 24, d: 2, sigma: 0.5}
     n_cells: 300
     holdout: [5, 11, 17, 23]
     n_sweeps: 2
+    methods: [cmc_paper, cmc_augmented, iter_kde, iter_logistic, iter_mlp]
   growth:                  # 2 doses x 6 times x (log R, log P), log-normal measurement noise
     model: {noise_sd: 0.1}
     n_cells: 300
     holdout: [3, 9]        # t = 20 at both doses
     n_sweeps: 2
+    methods: [cmc_paper, cmc_augmented, iter_kde, iter_logistic, iter_mlp]
   gene:                    # 8 times x 3 genes, Poisson intrinsic noise + 30% capture
     model: {capture: 0.3}
     n_cells: 300
     holdout: [3, 6]        # t = 3 h and t = 8 h
     n_sweeps: 2
+    methods: [cmc_paper, cmc_augmented, iter_kde, iter_logistic, iter_mlp]
+  growth_tracked:
+    kind: growth
+    model: {noise_sd: 0.1, design: tracked}
+    n_cells: 200
+    holdout: []
+    n_sweeps: 2
+    methods: [iter_logistic, bb_logistic, bayes_gauss, bayes_dpm_nre]
+  linear_bayes:
+    kind: linear
+    model: {p: 5, n_blocks: 24, d: 2, sigma: 0.5}
+    n_cells: 200
+    holdout: []
+    n_sweeps: 2
+    methods: [iter_logistic, bb_logistic, bayes_gauss, bayes_dpm, bayes_dpm_nre]
 
 methods:
   cmc_paper:               # original CMC: deterministic map, joint vine-KDE pushforward, one step
@@ -40,6 +58,34 @@ methods:
   iter_mlp:                # iterated, block-wise, neural-network classifier
     kind: iterate
     ratio: mlp
+  bb_logistic:
+    kind: bootstrap
+    ratio: logistic2
+    n_boot: 3
+  bayes_gauss:
+    kind: bayes
+    lik: exact
+    n_comp: 1
+  bayes_dpm:
+    kind: bayes
+    lik: exact
+    n_comp: 3
+  bayes_dpm_nre:
+    kind: bayes
+    lik: nre
+    n_comp: 3
+
+bayes:
+  n_burn: 60
+  n_keep: 40
+  thin: 10
+  n_pop: 200
+  sigma_scale: 0.25
+  nu_extra: 3.0
+  n_init: 50
+  nre_train: 2000
+  nre_rounds: 2
+  nre_hidden: [16, 16]
 
 settings:                  # cmc.Settings defaults for every fit
   n_particles: 1500
@@ -52,3 +98,4 @@ settings:                  # cmc.Settings defaults for every fit
   threads: 2
   one_step_particles: 2000
   n_truth: 1000           # population draws used to score parameter recovery
+  n_pop: 200

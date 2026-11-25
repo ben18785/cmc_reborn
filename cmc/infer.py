@@ -86,11 +86,13 @@ def rejuvenate(model, theta, logw, shrink, rng):
     return model.project_to_support(t)
 
 
-def iterate_blocks(model, data, fit_blocks, s: Settings, callback=None):
+def iterate_blocks(model, data, fit_blocks, s: Settings, callback=None, data_weights=None):
+    """data_weights: optional per-block arrays of per-cell weights (Bayesian bootstrap)."""
     rng = np.random.default_rng(s.seed)
     N = s.n_particles
     theta = model.sample_prior(N, rng)
     lat = model.latent(theta)
+    n_solves = N  # forward-model evaluations (one per particle created); scoring not counted
     logw = np.full(N, -np.log(N))
     targets = {}
     history = []
@@ -105,7 +107,10 @@ def iterate_blocks(model, data, fit_blocks, s: Settings, callback=None):
                 targets[j] = est
             idx = systematic_resample(logw, s.n_fit, rng)
             q_train = model.observe(lat[idx][:, cols], rng) if s.noise else lat[idx][:, cols]
-            est.fit(data[j], q_train)
+            if data_weights is None:
+                est.fit(data[j], q_train)
+            else:
+                est.fit(data[j], q_train, weight=data_weights[j])
             reps = 1 if not s.noise else s.n_reps
             lat_rep = np.repeat(lat[:, cols], reps, axis=0)
             q_eval = model.observe(lat_rep, rng) if s.noise else lat_rep
@@ -115,11 +120,12 @@ def iterate_blocks(model, data, fit_blocks, s: Settings, callback=None):
             if ess(logw) < s.ess_frac * N:
                 theta = rejuvenate(model, theta, logw, s.shrink, rng)
                 lat = model.latent(theta)
+                n_solves += N
                 logw = np.full(N, -np.log(N))
                 n_rejuv += 1
         m, C = weighted_moments(theta, logw)
         rec = dict(sweep=sweep + 1, mean=m.tolist(), sd=np.sqrt(np.diag(C)).tolist(),
-                   ess=float(ess(logw)), n_rejuv=n_rejuv, seconds=time.time() - t0)
+                   ess=float(ess(logw)), n_rejuv=n_rejuv, n_solves=n_solves, seconds=time.time() - t0)
         if callback is not None:
             rec.update(callback(theta, logw, rng))
         history.append(rec)

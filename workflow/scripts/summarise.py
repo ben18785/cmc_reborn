@@ -29,14 +29,18 @@ by = defaultdict(list)
 for r in runs:
     by[(r["example"], r["method"])].append(r)
 
-# the tracking experiment (examples with a `kind`) has its own figure and table
-TRACK = [e for e in cfg["examples"] if "kind" in cfg["examples"][e] and any(k[0] == e for k in by)]
-EXAMPLES = [e for e in cfg["examples"] if e not in TRACK and any(k[0] == e for k in by)]
+# examples with a `kind` belong to the tracking experiment (growth designs) or the Bayesian
+# comparison; each has its own figure and table and stays out of the main table
+TRACK = [e for e in cfg["examples"] if "design" in cfg["examples"][e]["model"] and any(k[0] == e for k in by)]
+EXAMPLES = [e for e in cfg["examples"] if "kind" not in cfg["examples"][e] and any(k[0] == e for k in by)]
 METHODS = [m for m in cfg["methods"] if any(k[1] == m for k in by)]
 LABEL = {"cmc_paper": "CMC (noise ignored)", "cmc_augmented": "CMC (augmented)",
-         "iter_kde": "Iterated, KDE", "iter_logistic": "Iterated, logistic", "iter_mlp": "Iterated, MLP"}
+         "iter_kde": "Iterated, KDE", "iter_logistic": "Iterated, logistic", "iter_mlp": "Iterated, MLP",
+         "bb_logistic": "Iterated, logistic + Bayesian bootstrap", "bayes_gauss": "Bayes, Gaussian mixed effects",
+         "bayes_dpm": "Bayes, DP mixture", "bayes_dpm_nre": "Bayes, DP mixture, likelihood-free"}
 COLOR = {"cmc_paper": "#7f7f7f", "cmc_augmented": "#eda100", "iter_kde": "#1baf7a",
-         "iter_logistic": "#2a78d6", "iter_mlp": "#eb6834"}  # colour-blind-safe categorical order
+         "iter_logistic": "#2a78d6", "iter_mlp": "#eb6834",  # colour-blind-safe categorical order
+         "bb_logistic": "#7fb3e8", "bayes_gauss": "#8e5bd3", "bayes_dpm": "#c2408f", "bayes_dpm_nre": "#4d4d4d"}
 
 
 def het_ratio(f):
@@ -83,10 +87,11 @@ for r in rows:
            f"{ms(r['fit_rel'])} | {hold} | {ms(r['het'])} | {ms(r['cov']) if r['cov'] else '–'} | {np.mean(r['secs'])/60:.1f} |\n")
     f2 = lambda xs: f"{np.mean(xs):.2f}"
     f3 = lambda xs: f"{np.mean(xs):.3f}"
-    name = f"{r['example']} ({r['dims']})" if r["method"] == METHODS[0] else ""
+    ex_rows = [x for x in rows if x["example"] == r["example"]]
+    name = f"{r['example']} ({r['dims']})" if r is ex_rows[0] else ""
     tex.append(f"{name} & {LABEL[r['method']]} & {f3(r['ed_theta'])} & {f2(r['fit_rel'])} & "
                f"{f2(r['hold_rel']) if r['hold_rel'] else '--'} & {f2(r['het'])} \\\\"
-               + (" \\addlinespace" if r["method"] == METHODS[-1] and r is not rows[-1] else ""))
+               + (" \\addlinespace" if r is ex_rows[-1] and r is not rows[-1] else ""))
 open(os.path.join(a.out, "table.md"), "w").write(
     md + "\nθ energy distance: posterior vs true population (parameters scaled by prior sd). "
     "ED / floor: mean energy distance between observed and predicted snapshots divided by the distance "
@@ -335,6 +340,115 @@ if TRACK:
     fig.tight_layout(rect=(0, 0, 1, 0.9))
     fig.savefig(os.path.join(a.out, "tracking.pdf"))
     fig.savefig(os.path.join(a.out, "tracking.png"), dpi=150)
+    plt.close(fig)
+
+# ---- figure 8 + table: fully Bayesian hierarchical models vs iterated CMC
+# Each method stores S populations (posterior draws / bootstrap replicates; S = 1 for CMC). For every
+# quantity we take the population mean and the population sd (cell-to-cell spread) in each of them.
+BM = [m for m in ["iter_logistic", "bb_logistic", "bayes_gauss", "bayes_dpm", "bayes_dpm_nre"] if m in cfg["methods"]]
+BEX = [e for e in cfg["examples"] if any((e, m) in by for m in BM if cfg["methods"][m]["kind"] in ("bootstrap", "bayes"))]
+PRETTY = {"log_RT": "log $R_T$", "log_k1": "log $k_1$", "log_km1": "log $k_{-1}$",
+          "log_kdeg": "log $k_\\mathrm{deg}$", "log_kdegs": "log $k_\\mathrm{degs}$"}
+if BEX:
+    def quantities(e):
+        names = next(by[k][0]["param_names"] for k in by if k[0] == e)
+        q = [(PRETTY.get(n, n.replace("theta", "θ")), (lambda k: lambda x: x[..., k])(k)) for k, n in enumerate(names)]
+        if cfg["examples"][e].get("kind") == "growth":
+            q += [("log$(k_1/k_{-1})$", lambda x: x[..., 1] - x[..., 2]),
+                  ("log$(R_T k_\\mathrm{deg})$", lambda x: x[..., 0] + x[..., 3])]
+        return q
+
+    def stats(e, m, sd_):
+        P = np.load(os.path.join(a.fits, e, f"{m}_seed{sd_}.npz"))["pop_draws"].astype(float)
+        return [(f(P).mean(1), f(P).std(1)) for _, f in quantities(e)]
+
+    S = {}
+    for e in BEX:
+        for m in BM:
+            for r in by.get((e, m), []):
+                S[(e, m, r["seed"])] = stats(e, m, r["seed"])
+    TR = {}
+    for e in BEX:
+        for f in glob.glob(os.path.join(a.data, f"{e}_seed*.npz")):
+            sd_ = int(f.rsplit("seed", 1)[1].split(".")[0])
+            t = np.load(f)["truth"]
+            TR[(e, sd_)] = [(g(t).mean(), g(t).std()) for _, g in quantities(e)]
+
+    def ci(x):
+        return np.percentile(x, [2.5, 97.5]) if len(x) > 1 else np.array([x[0], x[0]])
+
+    lines = []
+    for e in BEX:
+        ms_ = [m for m in BM if (e, m) in by]
+        for m in ms_:
+            rs = by[(e, m)]
+            cov_m, cov_s, n_m, n_s, upper_fixed = 0, 0, 0, 0, []
+            for r in rs:
+                st_, tr = S[(e, m, r["seed"])], TR[(e, r["seed"])]
+                for (mm, ss), (tm, ts) in zip(st_, tr):
+                    lo, hi = ci(mm)
+                    cov_m += lo <= tm <= hi
+                    n_m += 1
+                    if ts > 1e-9:
+                        lo, hi = ci(ss)
+                        cov_s += lo <= ts <= hi
+                        n_s += 1
+                    else:
+                        upper_fixed.append(ci(ss)[1])
+            point = len(S[(e, m, rs[0]["seed"])][0][0]) == 1
+            dims = rs[0]["n_out_fit"] // rs[0]["n_blocks_fit"]
+            lab = f"{e.replace('_', ' ')} ({rs[0]['n_blocks_fit']}$\\times${dims})" if m == ms_[0] else ""
+            lines.append(
+                f"{lab} & {LABEL[m]} & {np.mean([r['final']['ed_theta'] for r in rs]):.3f} & "
+                + ("-- & -- & " if point else f"{cov_m}/{n_m} & {cov_s}/{n_s} & ")
+                + (f"{np.mean(upper_fixed):.2f}" if upper_fixed else "--")
+                + f" & {np.mean([(r['final'].get('n_solves') or 0) + (r['final'].get('n_solves_train') or 0) for r in rs]):.1e}"
+                + f" & {np.mean([r['final']['seconds'] for r in rs]) / 60:.1f} \\\\"
+                + (" \\addlinespace" if m == ms_[-1] and e != BEX[-1] else ""))
+    open(os.path.join(a.out, "bayes.tex"), "w").write(
+        "\\begin{tabular}{llrrrrrr}\n\\toprule\n"
+        "example (blocks$\\times$dims) & method & $\\theta$ ED & mean covered & sd covered & "
+        "sd of fixed rates & model evaluations & minutes \\\\\n\\midrule\n" + "\n".join(lines) + "\n\\bottomrule\n\\end{tabular}\n")
+
+    ncol = max(len(quantities(e)) for e in BEX)
+    MKB = {"iter_logistic": "o", "bb_logistic": "s", "bayes_gauss": "^", "bayes_dpm": "D", "bayes_dpm_nre": "v"}
+    fig, axes = plt.subplots(len(BEX), ncol, figsize=(1.45 * ncol + 0.5, 1.75 * len(BEX) + 0.6), squeeze=False)
+    for i, e in enumerate(BEX):
+        qs = quantities(e)
+        ms_ = [m for m in BM if (e, m) in by]
+        seeds = sorted(r["seed"] for r in by[(e, ms_[0])])
+        for k in range(ncol):
+            ax = axes[i][k]
+            if k >= len(qs):
+                ax.axis("off")
+                continue
+            for si, sd_ in enumerate(seeds):
+                ts = TR[(e, sd_)][k][1]
+                ax.plot([-0.5, len(ms_) - 0.5], [ts, ts], color="k", lw=0.6, ls=":", zorder=0)
+                for j, m in enumerate(ms_):
+                    if (e, m, sd_) not in S:
+                        continue
+                    ss = S[(e, m, sd_)][k][1]
+                    x = j + (si - (len(seeds) - 1) / 2) * 0.22
+                    lo, hi = ci(ss)
+                    if len(ss) > 1:
+                        ax.plot([x, x], [lo, hi], color=COLOR[m], lw=1.6, solid_capstyle="round")
+                    ax.plot(x, np.median(ss), MKB[m], ms=3.5, color=COLOR[m], mec="white", mew=0.4)
+            ax.set_xticks([])
+            ax.set_ylim(bottom=0)
+            ax.set_title(qs[k][0], fontsize=7, pad=2)
+            ax.tick_params(labelsize=6, length=2)
+            for side in ("top", "right"):
+                ax.spines[side].set_visible(False)
+        axes[i][0].set_ylabel(e.replace("_", " ") + "\npopulation sd", fontsize=7)
+    from matplotlib.lines import Line2D
+    hs = [Line2D([], [], color="k", lw=0.6, ls=":", label="true population sd")] + [
+        Line2D([], [], color=COLOR[m], marker=MKB[m], ms=4, lw=1.6, label=LABEL[m]) for m in BM
+        if any((e, m) in by for e in BEX)]
+    fig.legend(handles=hs, loc="upper center", ncol=3, fontsize=6.5, frameon=False)
+    fig.tight_layout(rect=(0, 0, 1, 1 - 0.55 / (1.75 * len(BEX) + 0.6)))
+    fig.savefig(os.path.join(a.out, "bayes.pdf"))
+    fig.savefig(os.path.join(a.out, "bayes.png"), dpi=150)
     plt.close(fig)
 
 # ---- figure 4: population mean +- sd across cells, truth vs methods, every parameter
