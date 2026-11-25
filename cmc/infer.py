@@ -86,11 +86,15 @@ def rejuvenate(model, theta, logw, shrink, rng):
     return model.project_to_support(t)
 
 
-def iterate_blocks(model, data, fit_blocks, s: Settings, callback=None, data_weights=None):
-    """data_weights: optional per-block arrays of per-cell weights (Bayesian bootstrap)."""
+def iterate_blocks(model, data, fit_blocks, s: Settings, callback=None, data_weights=None, init_theta=None):
+    """data_weights: optional per-block arrays of per-cell weights (Bayesian bootstrap).
+    init_theta: optional starting particles (default: draws from the prior)."""
     rng = np.random.default_rng(s.seed)
     N = s.n_particles
-    theta = model.sample_prior(N, rng)
+    if init_theta is None:
+        theta = model.sample_prior(N, rng)
+    else:
+        theta = np.asarray(init_theta, float)[rng.integers(len(init_theta), size=N)]
     lat = model.latent(theta)
     n_solves = N  # forward-model evaluations (one per particle created); scoring not counted
     logw = np.full(N, -np.log(N))

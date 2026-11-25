@@ -41,6 +41,30 @@ examples:
     holdout: []
     n_sweeps: 2
     methods: [iter_logistic, bb_logistic, bayes_gauss, bayes_dpm, bayes_dpm_nre]
+  gene_truth:
+    kind: gene
+    experiment: robustness
+    model: {capture: 0.3}
+    n_cells: 200
+    holdout: []
+    n_sweeps: 2
+    methods: [iter_logistic_truth, bayes_gauss_truth, bayes_gauss_nre_truth, bayes_gauss_nre_small_truth]
+  gene_n100:
+    kind: gene
+    experiment: robustness
+    model: {capture: 0.3}
+    n_cells: 100
+    holdout: []
+    n_sweeps: 2
+    methods: [iter_logistic, bb_logistic, bayes_gauss, bayes_gauss_nre]
+  gene_n300:
+    kind: gene
+    experiment: robustness
+    model: {capture: 0.3}
+    n_cells: 300
+    holdout: []
+    n_sweeps: 2
+    methods: [iter_logistic, bb_logistic, bayes_gauss_nre]
 
 methods:
   cmc_paper:               # original CMC: deterministic map, joint vine-KDE pushforward, one step
@@ -74,6 +98,34 @@ methods:
     kind: bayes
     lik: nre
     n_comp: 3
+
+  bayes_gauss_nre:
+    kind: bayes
+    lik: nre
+    n_comp: 1
+  iter_logistic_truth:
+    kind: iterate
+    ratio: logistic2
+    init: truth
+  bayes_gauss_truth:
+    kind: bayes
+    lik: exact
+    n_comp: 1
+    init: truth
+    n_checks: 5
+  bayes_gauss_nre_truth:
+    kind: bayes
+    lik: nre
+    n_comp: 1
+    init: truth
+    n_checks: 5
+  bayes_gauss_nre_small_truth:
+    kind: bayes
+    lik: nre
+    n_comp: 1
+    init: truth
+    n_checks: 5
+    bayes: {nre_train: 500, nre_hidden: [8, 8], nre_rounds: 1}
 
 bayes:
   n_burn: 60

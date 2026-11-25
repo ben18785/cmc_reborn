@@ -71,7 +71,8 @@ if meth["kind"] == "one_step":
 elif meth["kind"] == "iterate":
     s = Settings(ratio=meth["ratio"], n_particles=st["n_particles"], n_sweeps=ex["n_sweeps"],
                  noise=True, **common)
-    res = iterate_blocks(model, data, fit_blocks, s, callback=callback)
+    res = iterate_blocks(model, data, fit_blocks, s, callback=callback,
+                         init_theta=truth if meth.get("init") == "truth" else None)
 elif meth["kind"] == "bootstrap":
     # Bayesian bootstrap (Rubin 1981) of the iteration: Dirichlet(1,...,1) weights on the
     # observed cells of every block, one full iterated fit per replicate
@@ -94,9 +95,10 @@ elif meth["kind"] == "bootstrap":
                pop_draws=pop_draws)
 elif meth["kind"] == "bayes":
     bs = BayesSettings(lik=meth["lik"], n_comp=meth["n_comp"], alpha=meth.get("alpha", 1.0),
-                       seed=a.seed, **cfg["bayes"])
+                       seed=a.seed, **{**cfg["bayes"], **meth.get("bayes", {})})
     s = bs
-    r_b = fit_hierarchical(model, data, fit_blocks, bs, callback=callback)
+    r_b = fit_hierarchical(model, data, fit_blocks, bs, callback=callback, n_checks=meth.get("n_checks", 10),
+                           init_pop=truth if meth.get("init") == "truth" else None)
     pooled = r_b["pop_draws"].reshape(-1, model.p).astype(float)
     res = dict(theta=pooled, logw=np.full(len(pooled), -np.log(len(pooled))), pop_draws=r_b["pop_draws"],
                history=r_b["history"] + [dict(seconds=r_b["seconds"], n_solves=r_b["n_solves"],

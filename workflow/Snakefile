@@ -88,6 +88,9 @@ rule summarise:
         RES + "/summary/bayes.pdf",
         RES + "/summary/bayes.png",
         RES + "/summary/bayes.tex",
+        RES + "/summary/robustness.pdf",
+        RES + "/summary/robustness.png",
+        RES + "/summary/robustness.tex",
         expand(RES + "/summary/marginals_{example}.pdf", example=["growth", "gene", "linear"]),
     params:
         cfg=CFG,

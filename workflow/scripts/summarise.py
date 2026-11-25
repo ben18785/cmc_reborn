@@ -40,7 +40,14 @@ LABEL = {"cmc_paper": "CMC (noise ignored)", "cmc_augmented": "CMC (augmented)",
          "bayes_dpm": "Bayes, DP mixture", "bayes_dpm_nre": "Bayes, DP mixture, likelihood-free"}
 COLOR = {"cmc_paper": "#7f7f7f", "cmc_augmented": "#eda100", "iter_kde": "#1baf7a",
          "iter_logistic": "#2a78d6", "iter_mlp": "#eb6834",  # colour-blind-safe categorical order
-         "bb_logistic": "#7fb3e8", "bayes_gauss": "#8e5bd3", "bayes_dpm": "#c2408f", "bayes_dpm_nre": "#4d4d4d"}
+         "bb_logistic": "#7fb3e8", "bayes_gauss": "#8e5bd3", "bayes_dpm": "#c2408f", "bayes_dpm_nre": "#4d4d4d",
+         "bayes_gauss_nre": "#4d4d4d"}
+LABEL.update({"bayes_gauss_nre": "Bayes, Gaussian mixed effects, likelihood-free",
+              "iter_logistic_truth": "Iterated, logistic", "bayes_gauss_truth": "Bayes, exact likelihood",
+              "bayes_gauss_nre_truth": "Bayes, likelihood-free (40k sims/block)",
+              "bayes_gauss_nre_small_truth": "Bayes, likelihood-free (5k sims/block)"})
+COLOR.update({"iter_logistic_truth": COLOR["iter_logistic"], "bayes_gauss_truth": COLOR["bayes_gauss"],
+              "bayes_gauss_nre_truth": "#4d4d4d", "bayes_gauss_nre_small_truth": "#b0b0b0"})
 
 
 def het_ratio(f):
@@ -346,7 +353,8 @@ if TRACK:
 # Each method stores S populations (posterior draws / bootstrap replicates; S = 1 for CMC). For every
 # quantity we take the population mean and the population sd (cell-to-cell spread) in each of them.
 BM = [m for m in ["iter_logistic", "bb_logistic", "bayes_gauss", "bayes_dpm", "bayes_dpm_nre"] if m in cfg["methods"]]
-BEX = [e for e in cfg["examples"] if any((e, m) in by for m in BM if cfg["methods"][m]["kind"] in ("bootstrap", "bayes"))]
+BEX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") != "robustness"
+       and any((e, m) in by for m in BM if cfg["methods"][m]["kind"] in ("bootstrap", "bayes"))]
 PRETTY = {"log_RT": "log $R_T$", "log_k1": "log $k_1$", "log_km1": "log $k_{-1}$",
           "log_kdeg": "log $k_\\mathrm{deg}$", "log_kdegs": "log $k_\\mathrm{degs}$"}
 if BEX:
@@ -450,6 +458,100 @@ if BEX:
     fig.savefig(os.path.join(a.out, "bayes.pdf"))
     fig.savefig(os.path.join(a.out, "bayes.png"), dpi=150)
     plt.close(fig)
+
+# ---- figure 9 + table: robustness tests on the gene example
+# test 1 (gene_truth): every method starts at the true population; distance to it over the run.
+# test 2 (gene_n*): more cells per block at a fixed simulation budget; error, coverage, cost.
+ROB = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") == "robustness" and any(k[0] == e for k in by)]
+if ROB:
+    def pop_cover(e, m, sd_):
+        """fractions of parameters whose 95% interval covers the true population mean / sd"""
+        P = np.load(os.path.join(a.fits, e, f"{m}_seed{sd_}.npz"))["pop_draws"].astype(float)
+        if len(P) < 2:
+            return None
+        t = np.load(os.path.join(a.data, f"{e}_seed{sd_}.npz"))["truth"]
+        lo_m, hi_m = np.percentile(P.mean(1), [2.5, 97.5], axis=0)
+        lo_s, hi_s = np.percentile(P.std(1), [2.5, 97.5], axis=0)
+        tm, ts = t.mean(0), t.std(0)
+        return float(np.mean((lo_m <= tm) & (tm <= hi_m))), float(np.mean((lo_s <= ts) & (ts <= hi_s)))
+
+    NS = sorted([(cfg["examples"][e]["n_cells"], e) for e in ROB if e.startswith("gene_n")])
+    T1 = [m for m in ["iter_logistic_truth", "bayes_gauss_truth", "bayes_gauss_nre_truth",
+                      "bayes_gauss_nre_small_truth"] if ("gene_truth", m) in by]
+    T2 = [m for m in ["iter_logistic", "bb_logistic", "bayes_gauss", "bayes_gauss_nre"] if any((e, m) in by for _, e in NS)]
+    fig, axes = plt.subplots(1, 4, figsize=(12.5, 2.9))
+    ax = axes[0]
+    for m in T1:
+        for i, r in enumerate(by[("gene_truth", m)]):
+            h = [x for x in r["history"] if "ed_theta" in x]
+            n_tot = max(x["sweep"] for x in h)
+            ax.plot([x["sweep"] / n_tot for x in h], [x["ed_theta"] for x in h], color=COLOR[m], lw=1.2,
+                    ls="--" if "small" in m else "-", alpha=0.85, label=LABEL[m] if i == 0 else None)
+    ax.set_xlabel("fraction of run", fontsize=8)
+    ax.set_ylabel("distance to true population", fontsize=8)
+    ax.set_title("Test 1: start at the truth", fontsize=8)
+    ax.legend(fontsize=6, frameon=False)
+    MK2 = {"iter_logistic": "o", "bb_logistic": "s", "bayes_gauss": "^", "bayes_gauss_nre": "v"}
+    for m in T2:
+        xs, ed, cm, cs, ev = [], [], [], [], []
+        for n, e in NS:
+            rs = by.get((e, m), [])
+            if not rs:
+                continue
+            xs.append(n)
+            ed.append(np.mean([r["final"]["ed_theta"] for r in rs]))
+            ev.append(np.mean([(r["final"].get("n_solves") or 0) + (r["final"].get("n_solves_train") or 0) for r in rs]))
+            c = [pop_cover(e, m, r["seed"]) for r in rs]
+            c = [x for x in c if x is not None]
+            cm.append(np.mean([x[0] for x in c]) if c else np.nan)
+            cs.append(np.mean([x[1] for x in c]) if c else np.nan)
+        kw = dict(color=COLOR[m], marker=MK2[m], ms=4, lw=1.3, label=LABEL[m])
+        axes[1].plot(xs, ed, **kw)
+        if not np.all(np.isnan(cs)):
+            axes[2].plot(xs, cs, **kw)
+            axes[2].plot(xs, cm, color=COLOR[m], marker=MK2[m], ms=3, lw=0.9, ls=":")
+        axes[3].plot(xs, ev, **kw)
+    axes[1].set_title("Test 2: error", fontsize=8)
+    axes[1].set_ylabel("distance to true population", fontsize=8)
+    axes[2].set_title("Test 2: 95% interval coverage\n(solid: population sd, dotted: mean)", fontsize=8)
+    axes[2].axhline(0.95, color="k", lw=0.6, ls=":")
+    axes[2].set_ylim(-0.03, 1.03)
+    axes[3].set_title("Test 2: forward-model evaluations", fontsize=8)
+    axes[3].set_yscale("log")
+    axes[1].set_yscale("log")
+    for ax in axes[1:]:
+        ax.set_xscale("log")
+        ax.set_xlabel("cells per block", fontsize=8)
+    h, l = axes[1].get_legend_handles_labels()
+    fig.legend(h, l, loc="lower center", ncol=len(l), fontsize=6.5, frameon=False, bbox_to_anchor=(0.62, 0))
+    for ax in axes:
+        ax.tick_params(labelsize=6.5, length=2)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+    fig.tight_layout(rect=(0, 0.07, 1, 1))
+    fig.savefig(os.path.join(a.out, "robustness.pdf"))
+    fig.savefig(os.path.join(a.out, "robustness.png"), dpi=150)
+    plt.close(fig)
+    lines = []
+    for m in T1:
+        rs = by[("gene_truth", m)]
+        h0 = [np.mean([[x for x in r["history"] if "ed_theta" in x][0]["ed_theta"] for r in rs])]
+        lines.append(f"start at truth & {LABEL[m]} & -- & {h0[0]:.3f} & {np.mean([r['final']['ed_theta'] for r in rs]):.3f} & -- & -- \\\\")
+    lines[-1] += " \\addlinespace" if lines and NS else ""
+    for n, e in NS:
+        for m in T2:
+            rs = by.get((e, m), [])
+            if not rs:
+                continue
+            c = [x for x in (pop_cover(e, m, r["seed"]) for r in rs) if x is not None]
+            cov = (f"{np.mean([x[0] for x in c]):.2f} & {np.mean([x[1] for x in c]):.2f}") if c else "-- & --"
+            lines.append(f"{n} cells/block & {LABEL[m]} & "
+                         f"{np.mean([(r['final'].get('n_solves') or 0) + (r['final'].get('n_solves_train') or 0) for r in rs]):.1e} & -- & "
+                         f"{np.mean([r['final']['ed_theta'] for r in rs]):.3f} & {cov} \\\\")
+    open(os.path.join(a.out, "robustness.tex"), "w").write(
+        "\\begin{tabular}{llrrrrr}\n\\toprule\n"
+        "setting & method & evaluations & $\\theta$ ED at start & $\\theta$ ED at end & mean covered & sd covered \\\\\n"
+        "\\midrule\n" + "\n".join(lines) + "\n\\bottomrule\n\\end{tabular}\n")
 
 # ---- figure 4: population mean +- sd across cells, truth vs methods, every parameter
 PM = [m for m in ["cmc_paper", "iter_logistic", "iter_mlp"] if m in METHODS]

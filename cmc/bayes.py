@@ -165,7 +165,9 @@ def _chol(S):
 
 
 # ---------------------------------------------------------------- sampler
-def fit_hierarchical(model, data, fit_blocks, s: BayesSettings, callback=None, n_checks=10):
+def fit_hierarchical(model, data, fit_blocks, s: BayesSettings, callback=None, n_checks=10, init_pop=None):
+    """init_pop: optional draws from a population to start from (cells and components);
+    default: the prior."""
     rng = np.random.default_rng(s.seed)
     t0 = time.time()
     p = model.p
@@ -194,11 +196,18 @@ def fit_hierarchical(model, data, fit_blocks, s: BayesSettings, callback=None, n
     allc = np.arange(N)
 
     # ---- initial state
-    theta = lik.init_cells(model.sample_prior(s.n_init, rng), rng)
+    if init_pop is None:
+        theta = lik.init_cells(model.sample_prior(s.n_init, rng), rng)
+        C0 = np.cov(theta.T) + 1e-6 * np.diag(scale**2)
+        z = rng.integers(T, size=N) if T > 1 else np.zeros(N, int)
+        mu = np.array([theta[rng.integers(N)] if T > 1 else theta.mean(0) for _ in range(T)])
+    else:  # every component at the given population's moments; cells drawn given their data
+        init_pop = np.asarray(init_pop, float)
+        theta = lik.init_cells(init_pop[rng.integers(len(init_pop), size=s.n_init)], rng)
+        C0 = np.cov(init_pop.T) + 1e-6 * np.diag(scale**2)
+        z = rng.integers(T, size=N) if T > 1 else np.zeros(N, int)
+        mu = np.array([init_pop.mean(0) for _ in range(T)])
     ll = lik(theta, allc)
-    C0 = np.cov(theta.T) + 1e-6 * np.diag(scale**2)
-    z = rng.integers(T, size=N) if T > 1 else np.zeros(N, int)
-    mu = np.array([theta[rng.integers(N)] if T > 1 else theta.mean(0) for _ in range(T)])
     Sig = np.array([C0.copy() for _ in range(T)])
     w = np.full(T, 1.0 / T)
 
