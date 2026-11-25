@@ -80,14 +80,20 @@ for r in rows:
     md += (f"| {r['example']} | {r['dims']} ({r['blocks']}) | {LABEL[r['method']]} | {ms(r['ed_theta'])} | "
            f"{ms(r['fit_rel'])} | {hold} | {ms(r['het'])} | {ms(r['cov']) if r['cov'] else '–'} | {np.mean(r['secs'])/60:.1f} |\n")
     f2 = lambda xs: f"{np.mean(xs):.2f}"
-    tex.append(f"{r['example']} & {LABEL[r['method']]} & {np.mean(r['ed_theta']):.3f} & {f2(r['fit_rel'])} & "
-               f"{f2(r['hold_rel']) if r['hold_rel'] else '--'} & {f2(r['het'])} & {f2(r['cov']) if r['cov'] else '--'} \\\\")
+    f3 = lambda xs: f"{np.mean(xs):.3f}"
+    name = f"{r['example']} ({r['dims']})" if r["method"] == METHODS[0] else ""
+    tex.append(f"{name} & {LABEL[r['method']]} & {f3(r['ed_theta'])} & {f2(r['fit_rel'])} & "
+               f"{f2(r['hold_rel']) if r['hold_rel'] else '--'} & {f2(r['het'])} \\\\"
+               + (" \\addlinespace" if r["method"] == METHODS[-1] and r is not rows[-1] else ""))
 open(os.path.join(a.out, "table.md"), "w").write(
     md + "\nθ energy distance: posterior vs true population (parameters scaled by prior sd). "
     "ED / floor: mean energy distance between observed and predicted snapshots divided by the distance "
     "between two independent data sets (1 = as good as the data allow). sd ratio: posterior sd / true "
     "sd averaged over parameters that vary across cells. Mean ± sd over seeds.\n")
-open(os.path.join(a.out, "table.tex"), "w").write("\n".join(tex) + "\n")
+open(os.path.join(a.out, "table.tex"), "w").write(
+    "\\begin{tabular}{llrrrr}\n\\toprule\n"
+    "example (dims) & method & $\\theta$ ED & fit ED/floor & held-out ED/floor & sd ratio \\\\\n\\midrule\n"
+    + "\n".join(tex) + "\n\\bottomrule\n\\end{tabular}\n")
 
 # ---- figure 1: scalar toy, sd of the population over iterations
 if ("scalar", "iter_kde") in by or ("scalar", "iter_logistic") in by:

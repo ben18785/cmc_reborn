@@ -77,11 +77,12 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           pattern: fit-*
-          path: results
-          merge-multiple: true
+          path: artifacts
       - name: summarise
         run: |
-          find results -type f | head -50
+          # each data file is uploaded by several jobs: merge without clobbering
+          mkdir -p results
+          for d in artifacts/*/; do cp -Rn "$d"* results/; done
           # fits come from the artifacts; never rerun them here
           PYTHONPATH=. python workflow/scripts/summarise.py --fits results/fits --data results/data \
             --config ${{ inputs.config }} --out results/summary
