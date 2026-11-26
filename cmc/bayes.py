@@ -119,6 +119,7 @@ class NreLik(_Lik):
         super().__init__(model, data, fit_blocks)
         self.hidden, self.n_train = tuple(hidden), n_train
         self.nets = [None] * len(self.q)
+        self.box = [None] * len(self.q)  # trust region: the range of the training parameters
         self.n_sim = 0  # simulations used to train the ratio estimators
 
     def _x(self, theta, q):
@@ -140,13 +141,20 @@ class NreLik(_Lik):
                                 validation_fraction=0.1, n_iter_no_change=15, max_iter=400,
                                 random_state=int(rng.integers(1 << 31))).fit(sc.transform(X), y)
             self.nets[b] = (sc, net)
+            lo, hi = th.min(0), th.max(0)
+            self.box[b] = (lo - 0.05 * (hi - lo), hi + 0.05 * (hi - lo))
 
     def block_ll(self, b, theta, q):
         sc, net = self.nets[b]
         h = sc.transform(self._x(theta, q))
         for W, c in zip(net.coefs_[:-1], net.intercepts_[:-1]):
             h = np.maximum(h @ W + c, 0.0)  # relu
-        return (h @ net.coefs_[-1] + net.intercepts_[-1])[:, 0]  # unclipped logit
+        out = (h @ net.coefs_[-1] + net.intercepts_[-1])[:, 0]  # unclipped logit
+        # a relu network extrapolates linearly, so its logit can grow without bound away from the
+        # training parameters; outside their range the estimate is not trusted
+        lo, hi = self.box[b]
+        out[~np.all((theta >= lo) & (theta <= hi), axis=1)] = -np.inf
+        return out
 
 
 # ---------------------------------------------------------------- helpers
