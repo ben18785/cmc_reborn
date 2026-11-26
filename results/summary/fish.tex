@@ -1,0 +1,24 @@
+\begin{tabular}{llrrrrr}
+\toprule
+example & method & $\theta$ ED & voracious fraction & mean $\log r$ & sd $\log r$ & minutes \\
+\midrule
+fish sim & true population & -- & 0.90 & 2.40 & 0.60 & -- \\
+ & Iterated, logistic & 0.307 & 0.80 & 2.69 & 0.74 & 0.9 \\
+ & Iterated, logistic on counts & 0.184 & 0.81 & 2.65 & 0.71 & 1.0 \\
+ & Iterated, MLP & 0.933 & 0.82 & 2.38 & 0.23 & 1.2 \\
+ & Iterated, logistic on counts + Bayesian bootstrap & 0.229 & 0.82 [0.75, 0.88] & 2.61 [2.47, 2.72] & 0.66 [0.52, 0.79] & 20.3 \\
+ & Bayes, Gaussian mixed effects & 0.981 & 0.58 [0.51, 0.64] & 2.53 [2.44, 2.63] & 0.56 [0.49, 0.67] & 39.7 \\
+ & Bayes, DP mixture & 0.264 & 0.82 [0.76, 0.87] & 2.59 [2.44, 2.78] & 0.58 [0.49, 0.80] & 40.5 \\ \addlinespace
+fish sim big & true population & -- & 0.90 & 2.41 & 0.61 & -- \\
+ & Iterated, logistic & 0.270 & 0.84 & 2.59 & 0.77 & 1.3 \\
+ & Iterated, logistic on counts & 0.104 & 0.90 & 2.49 & 0.68 & 1.1 \\
+ & Iterated, MLP & 0.250 & 0.84 & 2.53 & 0.73 & 1.6 \\
+ & Iterated, logistic on counts + Bayesian bootstrap & 0.101 & 0.88 [0.86, 0.89] & 2.50 [2.42, 2.55] & 0.70 [0.66, 0.73] & 20.3 \\ \addlinespace
+fish real & Iterated, logistic & -- & 0.91 & 2.33 & 0.89 & 1.1 \\
+ & Iterated, logistic on counts & -- & 0.87 & 2.48 & 0.80 & 1.1 \\
+ & Iterated, MLP & -- & 0.75 & 2.46 & 0.38 & 1.6 \\
+ & Iterated, logistic on counts + Bayesian bootstrap & -- & 0.86 [0.82, 0.92] & 2.54 [2.42, 2.71] & 0.82 [0.74, 0.95] & 16.5 \\
+ & Bayes, Gaussian mixed effects & -- & 0.56 [0.49, 0.63] & 2.52 [2.42, 2.62] & 0.64 [0.55, 0.75] & 37.5 \\
+ & Bayes, DP mixture & -- & 0.93 [0.86, 0.97] & 2.36 [2.24, 2.46] & 0.76 [0.65, 0.90] & 40.8 \\
+\bottomrule
+\end{tabular}

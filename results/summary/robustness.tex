@@ -1,0 +1,29 @@
+\begin{tabular}{llrrrrrr}
+\toprule
+setting & method & model runs & surrogate evals & $\theta$ ED at start & $\theta$ ED at end & mean covered & sd covered \\
+\midrule
+start at truth & Iterated, logistic & -- & -- & 0.001 & 0.001 & -- & -- \\
+start at truth & Bayes, exact likelihood & -- & -- & 0.001 & 0.002 & -- & -- \\
+start at truth & Bayes, likelihood-free (40k sims/block) & -- & -- & 0.001 & 2.268 & -- & -- \\
+start at truth & Bayes, likelihood-free (5k sims/block) & -- & -- & 0.007 & 1.974 & -- & -- \\ \addlinespace
+500 cells/block & Iterated, logistic & 1.5e+05 & -- & -- & 0.121 & -- & -- \\
+500 cells/block & Iterated, MLP & 3.0e+05 & -- & -- & 0.049 & -- & -- \\
+500 cells/block & Iterated, logistic + Bayesian bootstrap & 3.5e+06 & -- & -- & 0.125 & 0.78 & 0.11 \\
+500 cells/block & Bayes, Gaussian mixed effects & 1.0e+08 & -- & -- & 0.007 & 1.00 & 0.89 \\
+500 cells/block & Bayes, Gaussian mixed effects, likelihood-free & 9.6e+05 & 8.4e+07 & -- & 2.934 & 0.11 & 0.22 \\
+2000 cells/block & Iterated, logistic & 1.2e+05 & -- & -- & 0.092 & -- & -- \\
+2000 cells/block & Iterated, MLP & 1.3e+05 & -- & -- & 0.087 & -- & -- \\
+2000 cells/block & Iterated, logistic + Bayesian bootstrap & 2.4e+06 & -- & -- & 0.099 & 0.67 & 0.00 \\
+2000 cells/block & Bayes, Gaussian mixed effects & 4.0e+08 & -- & -- & 0.008 & 1.00 & 0.50 \\
+2000 cells/block & Bayes, Gaussian mixed effects, likelihood-free & 9.6e+05 & 3.3e+08 & -- & 0.568 & 0.56 & 0.44 \\
+8000 cells/block & Iterated, logistic & 1.2e+05 & -- & -- & 0.097 & -- & -- \\
+8000 cells/block & Iterated, MLP & 1.2e+05 & -- & -- & 0.102 & -- & -- \\
+8000 cells/block & Iterated, logistic + Bayesian bootstrap & 2.4e+06 & -- & -- & 0.096 & 0.67 & 0.00 \\
+8000 cells/block & Bayes, Gaussian mixed effects & 1.6e+09 & -- & -- & 0.008 & 0.94 & 0.39 \\
+8000 cells/block & Bayes, Gaussian mixed effects, likelihood-free & 9.6e+05 & 1.3e+09 & -- & 1.737 & 0.22 & 0.06 \\
+32000 cells/block & Iterated, logistic & 1.3e+05 & -- & -- & 0.106 & -- & -- \\
+32000 cells/block & Iterated, MLP & 1.7e+05 & -- & -- & 0.133 & -- & -- \\
+32000 cells/block & Iterated, logistic + Bayesian bootstrap & 2.3e+06 & -- & -- & 0.101 & 0.44 & 0.00 \\
+32000 cells/block & Bayes, Gaussian mixed effects, likelihood-free & 9.6e+05 & 5.2e+09 & -- & 2.084 & 0.00 & 0.17 \\
+\bottomrule
+\end{tabular}
