@@ -247,7 +247,7 @@ def fit_hierarchical(model, data, fit_blocks, s: BayesSettings, callback=None, n
         if ok.any():
             llp[ok] = lik(prop[ok], allc[ok])
         la = llp - ll + log_extra
-        acc = ok & (np.log(rng.uniform(size=N)) < la)
+        acc = ok & np.isfinite(la) & (np.log(rng.uniform(size=N)) < la)
         theta[acc], ll[acc] = prop[acc], llp[acc]
         acc_log[key].append(acc.mean())
         return acc.mean()
@@ -316,7 +316,10 @@ def fit_hierarchical(model, data, fit_blocks, s: BayesSettings, callback=None, n
             mean = Pc @ (S0inv @ m0 + Sinv @ x.sum(0))
             mu[k] = mean + _chol(Pc) @ rng.standard_normal(p)
             R = (x - mu[k]).T @ (x - mu[k])
-            Sig[k] = invwishart.rvs(df=nu0 + n_k[k], scale=Psi0 + R, random_state=rng)
+            B = Psi0 + 0.5 * (R + R.T)
+            if not np.isfinite(B).all() or not np.isfinite(mu[k]).all():
+                raise FloatingPointError(f"non-finite state in component {k} (n_k={n_k[k]})")
+            Sig[k] = invwishart.rvs(df=nu0 + n_k[k], scale=_chol(B) @ _chol(B).T, random_state=rng)
 
         # (6) group moves: a component and all its cells together
         for k in range(T):
@@ -329,10 +332,10 @@ def fit_hierarchical(model, data, fit_blocks, s: BayesSettings, callback=None, n
             C = np.cov(H.T) if len(H) > 50 else np.diag((0.01 * scale) ** 2)
             d = np.exp(log_s["shift"]) * (_chol(C + 1e-8 * np.diag(scale**2)) @ rng.standard_normal(p))
             xp = x + d
-            if inbox(xp).all():
+            if np.isfinite(xp).all() and inbox(xp).all():
                 llp = lik(xp, cells)
                 la = llp.sum() - llx.sum() + _mvn_logpdf((mu[k] + d)[None], m0, L0)[0] - _mvn_logpdf(mu[k][None], m0, L0)[0]
-                acc = np.log(rng.uniform()) < la
+                acc = bool(np.isfinite(la) and np.log(rng.uniform()) < la)
             else:
                 acc = False
             if acc:
@@ -340,25 +343,26 @@ def fit_hierarchical(model, data, fit_blocks, s: BayesSettings, callback=None, n
                 x, llx = xp, llp
             acc_log["shift"].append(float(acc))
             if burn:
-                log_s["shift"] += 0.05 * (float(acc) - 0.25)
+                log_s["shift"] = min(log_s["shift"] + 0.05 * (float(acc) - 0.25), np.log(3.0))
             # linear map: theta_i -> mu + A (theta_i - mu), Sigma -> A Sigma A'
             M = rng.standard_normal((p, p))
             e = np.exp(log_s["lin"])
             A = expm(e * M)
             xp = mu[k] + (x - mu[k]) @ A.T
             Sp = A @ Sig[k] @ A.T
-            if inbox(xp).all() and np.all(np.linalg.eigvalsh(0.5 * (Sp + Sp.T)) > 0):
+            if (np.isfinite(xp).all() and np.isfinite(Sp).all() and inbox(xp).all()
+                    and np.all(np.linalg.eigvalsh(0.5 * (Sp + Sp.T)) > 0)):
                 llp = lik(xp, cells)
                 la = (llp.sum() - llx.sum() + _iw_logpdf(Sp, nu0, Psi0) - _iw_logpdf(Sig[k], nu0, Psi0)
                       + (p + 1) * e * np.trace(M))
-                acc = np.log(rng.uniform()) < la
+                acc = bool(np.isfinite(la) and np.log(rng.uniform()) < la)
             else:
                 acc = False
             if acc:
                 theta[cells], ll[cells], Sig[k] = xp, llp, Sp
             acc_log["lin"].append(float(acc))
             if burn:
-                log_s["lin"] += 0.05 * (float(acc) - 0.25)
+                log_s["lin"] = min(log_s["lin"] + 0.05 * (float(acc) - 0.25), np.log(0.3))
             if burn:  # the shift proposal adapts during burn-in only
                 mu_hist[k].append(mu[k].copy())
 
