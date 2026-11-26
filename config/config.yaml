@@ -80,7 +80,7 @@ examples:
     n_cells: 500
     holdout: []
     n_sweeps: 20
-    methods: [iter_logistic, bb_logistic, bayes_gauss, bayes_gauss_nre]
+    methods: [iter_logistic, iter_mlp, bb_logistic, bayes_gauss, bayes_gauss_nre]
   gene_n2000:
     kind: gene
     experiment: robustness
@@ -88,7 +88,7 @@ examples:
     n_cells: 2000
     holdout: []
     n_sweeps: 20
-    methods: [iter_logistic, bb_logistic, bayes_gauss, bayes_gauss_nre]
+    methods: [iter_logistic, iter_mlp, bb_logistic, bayes_gauss, bayes_gauss_nre]
   gene_n8000:
     kind: gene
     experiment: robustness
@@ -96,7 +96,7 @@ examples:
     n_cells: 8000
     holdout: []
     n_sweeps: 20
-    methods: [iter_logistic, bb_logistic, bayes_gauss, bayes_gauss_nre]
+    methods: [iter_logistic, iter_mlp, bb_logistic, bayes_gauss, bayes_gauss_nre]
   gene_n32000:
     kind: gene
     experiment: robustness
@@ -104,7 +104,7 @@ examples:
     n_cells: 32000
     holdout: []
     n_sweeps: 20
-    methods: [iter_logistic, bb_logistic, bayes_gauss_nre]
+    methods: [iter_logistic, iter_mlp, bb_logistic, bayes_gauss_nre]
 
   # Gillespie examples (stochastic simulators; every output draw is a simulation).
   # bd_ssa: two genes, birth-death, exact snapshot likelihood (Poisson) as a control.

@@ -508,7 +508,7 @@ if ROB:
     NS = sorted([(cfg["examples"][e]["n_cells"], e) for e in ROB if e.startswith("gene_n")])
     T1 = [m for m in ["iter_logistic_truth", "bayes_gauss_truth", "bayes_gauss_nre_truth",
                       "bayes_gauss_nre_small_truth"] if ("gene_truth", m) in by]
-    T2 = [m for m in ["iter_logistic", "bb_logistic", "bayes_gauss", "bayes_gauss_nre"] if any((e, m) in by for _, e in NS)]
+    T2 = [m for m in ["iter_logistic", "iter_mlp", "bb_logistic", "bayes_gauss", "bayes_gauss_nre"] if any((e, m) in by for _, e in NS)]
     fig, axes = plt.subplots(1, 4, figsize=(12.5, 2.9))
     ax = axes[0]
     for m in T1:
@@ -521,7 +521,7 @@ if ROB:
     ax.set_ylabel("distance to true population", fontsize=8)
     ax.set_title("Test 1: start at the truth", fontsize=8)
     ax.legend(fontsize=6, frameon=False)
-    MK2 = {"iter_logistic": "o", "bb_logistic": "s", "bayes_gauss": "^", "bayes_gauss_nre": "v"}
+    MK2 = {"iter_logistic": "o", "iter_mlp": "D", "bb_logistic": "s", "bayes_gauss": "^", "bayes_gauss_nre": "v"}
     for m in T2:
         xs, ed, cm, cs, ev = [], [], [], [], []
         for n, e in NS:
