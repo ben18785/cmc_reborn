@@ -197,6 +197,11 @@ def fit_hierarchical(model, data, fit_blocks, s: BayesSettings, callback=None, n
     else:
         centre, scale = model.prior_mean, model.prior_sd
         inbox = lambda th: np.ones(len(th), bool)
+    # where the model has an exact symmetry (e.g. two interchangeable rates), restrict every cell
+    # to the canonical region so the per-cell posteriors are not multimodal by construction
+    _box = inbox
+    inbox = lambda th: _box(th) & np.all(model.canonical(th) == th, axis=1)
+    prior_draw = lambda n: model.canonical(model.sample_prior(n, rng))
     m0, S0 = centre, np.diag(scale**2)
     S0inv = np.linalg.inv(S0)
     L0 = _chol(S0)
@@ -208,7 +213,7 @@ def fit_hierarchical(model, data, fit_blocks, s: BayesSettings, callback=None, n
         lik = ExactLik(model, data, fit_blocks)
     elif s.lik == "nre":
         lik = NreLik(model, data, fit_blocks, s.nre_hidden, s.nre_train)
-        lik.train(lambda n: model.sample_prior(n, rng), rng)
+        lik.train(prior_draw, rng)
     else:
         raise ValueError(s.lik)
     N = lik.n
@@ -216,7 +221,7 @@ def fit_hierarchical(model, data, fit_blocks, s: BayesSettings, callback=None, n
 
     # ---- initial state
     if init_pop is None:
-        theta = lik.init_cells(model.sample_prior(s.n_init, rng), rng)
+        theta = lik.init_cells(prior_draw(s.n_init), rng)
         C0 = np.cov(theta.T) + 1e-6 * np.diag(scale**2)
         z = rng.integers(T, size=N) if T > 1 else np.zeros(N, int)
         mu = np.array([theta[rng.integers(N)] if T > 1 else theta.mean(0) for _ in range(T)])
@@ -278,8 +283,8 @@ def fit_hierarchical(model, data, fit_blocks, s: BayesSettings, callback=None, n
             def near(n):
                 k = int(0.8 * n)
                 x = cur[rng.integers(N, size=k)] + 0.1 * scale * rng.standard_normal((k, p))
-                x = model.project_to_support(x)
-                return np.vstack([x, model.sample_prior(n - k, rng)])
+                x = model.canonical(model.project_to_support(x))
+                return np.vstack([x, prior_draw(n - k)])
             lik.train(near, rng)
             ll = lik(theta, allc)
 

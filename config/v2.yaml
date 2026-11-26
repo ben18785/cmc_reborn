@@ -1,0 +1,227 @@
+# Comparable rerun (v2). Same data as config.yaml (same seeds), results in results_v2/.
+# CMC uses the converged settings from the robustness tests (80k particles, 32k training sims,
+# over-relaxed EM with step 2, resample-move after every update); its bootstrap uses the same settings
+# and classifier. Likelihood-free Bayes gets a larger simulation budget (200k per block per round, or
+# 1M for one- or two-block examples), capped by network training time. Exact Bayes is unchanged.
+results: results_v2
+seeds: [1, 2, 3]
+examples:
+  scalar:
+    model: {}
+    n_cells: 4000
+    holdout: []
+    n_sweeps: 40
+    methods: [iter_logistic, iter_mlp]
+  linear:
+    model: {p: 5, n_blocks: 24, d: 2, sigma: 0.5}
+    n_cells: 2000
+    holdout: [5, 11, 17, 23]
+    n_sweeps: 40
+    methods: [iter_logistic, iter_mlp]
+  growth:
+    model: {noise_sd: 0.1}
+    n_cells: 2000
+    holdout: [3, 9]
+    n_sweeps: 40
+    methods: [iter_logistic, iter_mlp]
+  gene:
+    model: {capture: 0.3}
+    n_cells: 2000
+    holdout: [3, 6]
+    n_sweeps: 40
+    methods: [iter_logistic, iter_mlp]
+  linear_bayes:
+    kind: linear
+    model: {p: 5, n_blocks: 24, d: 2, sigma: 0.5}
+    n_cells: 2000
+    holdout: []
+    n_sweeps: 40
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_dpm, bayes_dpm_nre_big]
+  growth_snapshot:
+    kind: growth
+    model: {noise_sd: 0.1, design: snapshot}
+    n_cells: 2000
+    holdout: []
+    n_sweeps: 40
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_dpm, bayes_dpm_nre_big]
+  growth_tracked:
+    kind: growth
+    model: {noise_sd: 0.1, design: tracked}
+    n_cells: 2000
+    holdout: []
+    n_sweeps: 120
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_dpm, bayes_dpm_nre_big1]
+  gene_n2000:
+    kind: gene
+    experiment: robustness
+    model: {capture: 0.3}
+    n_cells: 2000
+    holdout: []
+    n_sweeps: 40
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big]
+  gene_n8000:
+    kind: gene
+    experiment: robustness
+    model: {capture: 0.3}
+    n_cells: 8000
+    holdout: []
+    n_sweeps: 40
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big]
+  gene_n32000:
+    kind: gene
+    experiment: robustness
+    model: {capture: 0.3}
+    n_cells: 32000
+    holdout: []
+    n_sweeps: 40
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big]
+  bd_ssa:
+    kind: bd_ssa
+    experiment: ssa
+    model: {design: snapshot}
+    n_cells: 2000
+    holdout: []
+    n_sweeps: 40
+    settings: &id001 {n_particles: 40000, n_fit: 16000, n_reps: 2}
+    methods: [iter_mlp, bb_mlp_ssa, bayes_gauss, bayes_gauss_nre_big]
+  feedback_ssa:
+    kind: feedback_ssa
+    experiment: ssa
+    model: {design: snapshot}
+    n_cells: 2000
+    holdout: []
+    n_sweeps: 40
+    settings: *id001
+    methods: [iter_mlp, bb_mlp_ssa, bayes_gauss_nre_big]
+  bd_ssa_tracked:
+    kind: bd_ssa
+    experiment: ssa
+    model: {design: tracked}
+    n_cells: 2000
+    holdout: []
+    n_sweeps: 160
+    settings: &id002 {n_particles: 20000, n_fit: 16000, n_reps: 2}
+    methods: [iter_mlp, bayes_gauss_nre_big1]
+  feedback_ssa_tracked:
+    kind: feedback_ssa
+    experiment: ssa
+    model: {design: tracked}
+    n_cells: 2000
+    holdout: []
+    n_sweeps: 120
+    settings: *id002
+    methods: [iter_mlp, bayes_gauss_nre_big1]
+  fish_sim:
+    kind: fish
+    experiment: fish
+    model: {}
+    n_cells: 95
+    holdout: []
+    n_sweeps: 40
+    methods: [iter_bins, bb_bins, bayes_gauss, bayes_dpm]
+  fish_real:
+    kind: fish
+    experiment: fish
+    data_csv: data/fish/functional_response.csv
+    model: {}
+    n_cells: 95
+    holdout: []
+    n_sweeps: 40
+    methods: [iter_bins, bb_bins, bayes_gauss, bayes_dpm]
+  fish_sim_big:
+    kind: fish
+    experiment: fish
+    model: {}
+    n_cells: 2000
+    holdout: []
+    n_sweeps: 40
+    methods: [iter_bins, bb_bins]
+  tf_sim:
+    kind: transfection
+    experiment: transfection
+    model: {}
+    n_cells: 2565
+    holdout: []
+    n_sweeps: 150
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1]
+  tf_egfp:
+    kind: transfection
+    experiment: transfection
+    data_tracks: data/transfection/eGFP.csv
+    model: {}
+    n_cells: 2565
+    holdout: []
+    n_sweeps: 150
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1]
+  tf_d2egfp:
+    kind: transfection
+    experiment: transfection
+    data_tracks: data/transfection/d2eGFP.csv
+    model: {}
+    n_cells: 2923
+    holdout: []
+    n_sweeps: 150
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1]
+  tf_ssa_sim:
+    kind: transfection_ssa
+    experiment: transfection
+    model: {}
+    n_cells: 2565
+    holdout: []
+    n_sweeps: 100
+    settings: *id002
+    methods: [iter_mlp, bayes_gauss_nre_big1]
+  tf_ssa_egfp:
+    kind: transfection_ssa
+    experiment: transfection
+    data_tracks: data/transfection/eGFP.csv
+    model: {}
+    n_cells: 2565
+    holdout: []
+    n_sweeps: 100
+    settings: *id002
+    methods: [iter_mlp, bayes_gauss_nre_big1]
+methods:
+  iter_logistic: {kind: iterate, ratio: logistic2}
+  iter_mlp: {kind: iterate, ratio: mlp}
+  iter_bins: {kind: iterate, ratio: logistic_bins}
+  bayes_gauss: {kind: bayes, lik: exact, n_comp: 1}
+  bayes_dpm: {kind: bayes, lik: exact, n_comp: 10, alpha: 1.0}
+  bb_mlp: {kind: bootstrap, ratio: mlp, n_boot: 20}
+  bb_mlp_ssa: {kind: bootstrap, ratio: mlp, n_boot: 8}
+  bb_bins: {kind: bootstrap, ratio: logistic_bins, n_boot: 20}
+  bayes_gauss_nre_big:
+    kind: bayes
+    lik: nre
+    n_comp: 1
+    bayes: {nre_train: 200000}
+  bayes_dpm_nre_big:
+    kind: bayes
+    lik: nre
+    n_comp: 10
+    alpha: 1.0
+    bayes: {nre_train: 200000}
+  bayes_gauss_nre_big1:
+    kind: bayes
+    lik: nre
+    n_comp: 1
+    bayes: {nre_train: 1000000}
+  bayes_dpm_nre_big1:
+    kind: bayes
+    lik: nre
+    n_comp: 10
+    alpha: 1.0
+    bayes: {nre_train: 1000000}
+bayes:
+  n_burn: 3000
+  n_keep: 2000
+  thin: 10
+  n_pop: 1000
+  sigma_scale: 0.25
+  nu_extra: 3.0
+  n_init: 500
+  nre_train: 40000
+  nre_rounds: 3
+  nre_hidden: [128, 128]
+settings: {n_particles: 80000, n_reps: 4, n_fit: 32000, ess_frac: 0.5, shrink: 0.95, clip: 8.0, step: 2.0, threads: 2,
+  one_step_particles: 50000, n_truth: 20000, n_pop: 1000, rejuv: always, boot_workers: 4}

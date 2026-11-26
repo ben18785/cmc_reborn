@@ -53,16 +53,18 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements-lock.txt && pip install -e .
+      - name: results directory (a config may set `results:`)
+        run: echo "RES=$(python -c "import yaml; print(yaml.safe_load(open('${{ inputs.config }}')).get('results', 'results'))")" >> "$GITHUB_ENV"
       - name: fit
         run: |
-          snakemake results/fits/${{ matrix.example }}/${{ matrix.method }}_seed${{ matrix.seed }}.json \
-            --cores 2 --configfile ${{ inputs.config }} --config config_file=${{ inputs.config }}
+          snakemake $RES/fits/${{ matrix.example }}/${{ matrix.method }}_seed${{ matrix.seed }}.json \
+            --cores 2 --configfile ${{ inputs.config }} --config config_file=${{ inputs.config }} results=$RES
       - uses: actions/upload-artifact@v4
         with:
           name: fit-${{ matrix.name }}
           path: |
-            results/fits/${{ matrix.example }}/${{ matrix.method }}_seed${{ matrix.seed }}.*
-            results/data/${{ matrix.example }}_seed${{ matrix.seed }}.npz
+            ${{ env.RES }}/fits/${{ matrix.example }}/${{ matrix.method }}_seed${{ matrix.seed }}.*
+            ${{ env.RES }}/data/${{ matrix.example }}_seed${{ matrix.seed }}.npz
   summarise:
     needs: fit
     if: always()
