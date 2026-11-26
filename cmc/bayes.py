@@ -355,7 +355,7 @@ def fit_hierarchical(model, data, fit_blocks, s: BayesSettings, callback=None, n
             xp = mu[k] + (x - mu[k]) @ A.T
             Sp = A @ Sig[k] @ A.T
             if (np.isfinite(xp).all() and np.isfinite(Sp).all() and inbox(xp).all()
-                    and np.all(np.linalg.eigvalsh(0.5 * (Sp + Sp.T)) > 0)):
+                    and np.linalg.cond(Sp) < 1e8 and np.all(np.linalg.eigvalsh(0.5 * (Sp + Sp.T)) > 0)):
                 llp = lik(xp, cells)
                 la = (llp.sum() - llx.sum() + _iw_logpdf(Sp, nu0, Psi0) - _iw_logpdf(Sig[k], nu0, Psi0)
                       + (p + 1) * e * np.trace(M))
