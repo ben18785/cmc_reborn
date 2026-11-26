@@ -106,6 +106,25 @@ examples:
     n_sweeps: 20
     methods: [iter_logistic, iter_mlp, bb_logistic, bayes_gauss_nre]
 
+  gene_big2000:             # test 2b: as gene_n2000 but the simulation budget grows with the data
+    kind: gene
+    experiment: robustness
+    model: {capture: 0.3}
+    n_cells: 2000
+    holdout: []
+    n_sweeps: 30
+    settings: {n_fit: 32000, n_particles: 80000}
+    methods: [iter_logistic, iter_mlp]
+  gene_big32000:             # test 2b: as gene_n32000 but the simulation budget grows with the data
+    kind: gene
+    experiment: robustness
+    model: {capture: 0.3}
+    n_cells: 32000
+    holdout: []
+    n_sweeps: 30
+    settings: {n_fit: 32000, n_particles: 80000}
+    methods: [iter_logistic, iter_mlp]
+
   # Gillespie examples (stochastic simulators; every output draw is a simulation).
   # bd_ssa: two genes, birth-death, exact snapshot likelihood (Poisson) as a control.
   # feedback_ssa: telegraph gene with negative feedback, mRNA and protein measured, no tractable likelihood.
