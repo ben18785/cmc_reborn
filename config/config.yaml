@@ -131,7 +131,7 @@ examples:
     model: {capture: 0.3}
     n_cells: 8000
     holdout: []
-    n_sweeps: 30
+    n_sweeps: 100
     settings: {n_fit: 32000, n_particles: 80000}
     methods: [iter_mlp]
   gene_huge32000:
@@ -140,7 +140,7 @@ examples:
     model: {capture: 0.3}
     n_cells: 32000
     holdout: []
-    n_sweeps: 30
+    n_sweeps: 100
     settings: {n_fit: 128000, n_particles: 160000}
     methods: [iter_mlp]
 

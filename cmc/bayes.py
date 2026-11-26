@@ -294,7 +294,7 @@ def fit_hierarchical(model, data, fit_blocks, s: BayesSettings, callback=None, n
             prop = theta + np.exp(log_s[key]) * st
             a = mh_cells(prop, lpop(prop, z) - lpop(theta, z), key)
             if burn:
-                log_s[key] += 0.05 * (a - 0.25)
+                log_s[key] = min(log_s[key] + 0.05 * (a - 0.25), np.log(3.0))
 
         # (4) allocations and weights
         if T > 1:
@@ -318,7 +318,11 @@ def fit_hierarchical(model, data, fit_blocks, s: BayesSettings, callback=None, n
             R = (x - mu[k]).T @ (x - mu[k])
             B = Psi0 + 0.5 * (R + R.T)
             if not np.isfinite(B).all() or not np.isfinite(mu[k]).all():
-                raise FloatingPointError(f"non-finite state in component {k} (n_k={n_k[k]})")
+                raise FloatingPointError(
+                    f"non-finite state in component {k} (n_k={n_k[k]}, it={it}): theta finite "
+                    f"{np.isfinite(x).all()}, mean finite {np.isfinite(mean).all()}, Sigma finite "
+                    f"{np.isfinite(Sig[k]).all()}, cond(Sigma) {np.linalg.cond(Sig[k]):.3g}, log_s "
+                    f"{ {kk: round(float(v), 2) for kk, v in log_s.items()} }")
             Sig[k] = invwishart.rvs(df=nu0 + n_k[k], scale=_chol(B) @ _chol(B).T, random_state=rng)
 
         # (6) group moves: a component and all its cells together
