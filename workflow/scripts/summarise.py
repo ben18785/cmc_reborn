@@ -57,6 +57,14 @@ LABEL.update({"iter_mlp_s15": "Iterated, MLP, step 1.5", "iter_mlp_s2": "Iterate
               "iter_mlp_truth": "Iterated, MLP"})
 for k in ("iter_mlp_s15", "iter_mlp_s2", "iter_mlp_always", "iter_mlp_always_s2", "iter_mlp_truth"):
     COLOR.setdefault(k, COLOR["iter_mlp"])
+LABEL.update({"bb_mlp": "Iterated, MLP + Bayesian bootstrap", "bb_mlp_ssa": "Iterated, MLP + Bayesian bootstrap",
+              "bayes_gauss_nre_big": "Bayes, Gaussian mixed effects, likelihood-free",
+              "bayes_gauss_nre_big1": "Bayes, Gaussian mixed effects, likelihood-free",
+              "bayes_dpm_nre_big": "Bayes, DP mixture, likelihood-free",
+              "bayes_dpm_nre_big1": "Bayes, DP mixture, likelihood-free"})
+COLOR.update({"bb_mlp": "#f4a582", "bb_mlp_ssa": "#f4a582"})
+for k in ("bayes_gauss_nre_big", "bayes_gauss_nre_big1", "bayes_dpm_nre_big", "bayes_dpm_nre_big1"):
+    COLOR[k] = "#4d4d4d"
 for k in list(cfg["methods"]):  # any method without a label falls back to its key
     LABEL.setdefault(k, k.replace("_", " "))
     COLOR.setdefault(k, "#999999")
@@ -387,10 +395,12 @@ if TRACK:
 # ---- figure 8 + table: fully Bayesian hierarchical models vs iterated CMC
 # Each method stores S populations (posterior draws / bootstrap replicates; S = 1 for CMC). For every
 # quantity we take the population mean and the population sd (cell-to-cell spread) in each of them.
-BM = [m for m in ["iter_logistic", "bb_logistic", "bayes_gauss", "bayes_dpm", "bayes_dpm_nre"] if m in cfg["methods"]]
+BM = [m for m in ["iter_logistic", "iter_mlp", "bb_logistic", "bb_mlp", "bayes_gauss", "bayes_dpm", "bayes_dpm_nre",
+                    "bayes_dpm_nre_big", "bayes_dpm_nre_big1"] if m in cfg["methods"]]
 BEX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") not in ("robustness", "ssa", "fish", "transfection", "transfection_truth")
        and any((e, m) in by for m in BM if cfg["methods"][m]["kind"] in ("bootstrap", "bayes"))]
-SSA_M = [m for m in ["iter_logistic", "iter_mlp", "bb_logistic_ssa", "bayes_gauss", "bayes_gauss_nre"] if m in cfg["methods"]]
+SSA_M = [m for m in ["iter_logistic", "iter_mlp", "bb_logistic_ssa", "bb_mlp_ssa", "bayes_gauss", "bayes_gauss_nre",
+                       "bayes_gauss_nre_big", "bayes_gauss_nre_big1"] if m in cfg["methods"]]
 SSA_EX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") == "ssa" and any(k[0] == e for k in by)]
 PRETTY = {"log_delta": "log $\\delta$", "log_gamma": "log $\\gamma$", "log_km0": "log $k m_0$",
           "log_t0": "log $t_0$", "log_offset": "log offset", "log_sigma": "log $\\sigma$", "log_k": "log $k$",
@@ -486,7 +496,7 @@ def bayes_summary(BEX, BM, name):
                     lo, hi = ci(ss)
                     if len(ss) > 1:
                         ax.plot([x, x], [lo, hi], color=COLOR[m], lw=1.6, solid_capstyle="round")
-                    ax.plot(x, np.median(ss), MKB[m], ms=3.5, color=COLOR[m], mec="white", mew=0.4)
+                    ax.plot(x, np.median(ss), MKB.get(m, "v" if "nre" in m else "s" if m.startswith("bb") else "o"), ms=3.5, color=COLOR[m], mec="white", mew=0.4)
             ax.set_xticks([])
             ax.set_ylim(bottom=0)
             ax.set_title(qs[k][0], fontsize=7, pad=2)
@@ -496,7 +506,7 @@ def bayes_summary(BEX, BM, name):
         axes[i][0].set_ylabel(e.replace("_", " ") + "\npopulation sd", fontsize=7)
     from matplotlib.lines import Line2D
     hs = [Line2D([], [], color="k", lw=0.6, ls=":", label="true population sd")] + [
-        Line2D([], [], color=COLOR[m], marker=MKB[m], ms=4, lw=1.6, label=LABEL[m]) for m in BM
+        Line2D([], [], color=COLOR[m], marker=MKB.get(m, "v" if "nre" in m else "s" if m.startswith("bb") else "o"), ms=4, lw=1.6, label=LABEL[m]) for m in BM
         if any((e, m) in by for e in BEX)]
     fig.legend(handles=hs, loc="upper center", ncol=3, fontsize=6.5, frameon=False)
     fig.tight_layout(rect=(0, 0, 1, 1 - 0.55 / (1.75 * len(BEX) + 0.6)))
@@ -510,7 +520,8 @@ if BEX:
 if SSA_EX:
     bayes_summary(SSA_EX, SSA_M, "ssa")
 TF_EX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") == "transfection" and any(k[0] == e for k in by)]
-TF_M = [m for m in ["iter_logistic", "iter_mlp", "bb_logistic", "bb_logistic_ssa", "bayes_gauss", "bayes_gauss_nre"]
+TF_M = [m for m in ["iter_logistic", "iter_mlp", "bb_logistic", "bb_logistic_ssa", "bb_mlp", "bayes_gauss", "bayes_gauss_nre",
+                     "bayes_gauss_nre_big1"]
         if m in cfg["methods"]]
 if TF_EX:
     bayes_summary(TF_EX, TF_M, "transfection")
@@ -534,7 +545,7 @@ if ROB:
     NS = sorted([(cfg["examples"][e]["n_cells"], e) for e in ROB if e.startswith("gene_n")])
     T1 = [m for m in ["iter_logistic_truth", "bayes_gauss_truth", "bayes_gauss_nre_truth",
                       "bayes_gauss_nre_small_truth"] if ("gene_truth", m) in by]
-    T2 = [m for m in ["iter_logistic", "iter_mlp", "bb_logistic", "bayes_gauss", "bayes_gauss_nre"] if any((e, m) in by for _, e in NS)]
+    T2 = [m for m in ["iter_logistic", "iter_mlp", "bb_logistic", "bb_mlp", "bayes_gauss", "bayes_gauss_nre", "bayes_gauss_nre_big"] if any((e, m) in by for _, e in NS)]
     fig, axes = plt.subplots(1, 4, figsize=(12.5, 2.9))
     ax = axes[0]
     for m in T1:
@@ -561,11 +572,11 @@ if ROB:
             c = [x for x in c if x is not None]
             cm.append(np.mean([x[0] for x in c]) if c else np.nan)
             cs.append(np.mean([x[1] for x in c]) if c else np.nan)
-        kw = dict(color=COLOR[m], marker=MK2[m], ms=4, lw=1.3, label=LABEL[m])
+        kw = dict(color=COLOR[m], marker=MK2.get(m, "v" if "nre" in m else "s" if m.startswith("bb") else "o"), ms=4, lw=1.3, label=LABEL[m])
         axes[1].plot(xs, ed, **kw)
         if not np.all(np.isnan(cs)):
             axes[2].plot(xs, cs, **kw)
-            axes[2].plot(xs, cm, color=COLOR[m], marker=MK2[m], ms=3, lw=0.9, ls=":")
+            axes[2].plot(xs, cm, color=COLOR[m], marker=MK2.get(m, "v" if "nre" in m else "s" if m.startswith("bb") else "o"), ms=3, lw=0.9, ls=":")
         axes[3].plot(xs, ev, **kw)
     axes[1].set_title("Test 2: error", fontsize=8)
     axes[1].set_ylabel("distance to true population", fontsize=8)
@@ -593,7 +604,8 @@ if ROB:
         rs = by[("gene_truth", m)]
         h0 = [np.mean([[x for x in r["history"] if "ed_theta" in x][0]["ed_theta"] for r in rs])]
         lines.append(f"start at truth & {LABEL[m]} & -- & -- & {h0[0]:.3f} & {np.mean([r['final']['ed_theta'] for r in rs]):.3f} & -- & -- \\\\")
-    lines[-1] += " \\addlinespace" if lines and NS else ""
+    if lines and NS:
+        lines[-1] += " \\addlinespace"
     for n, e in NS:
         for m in T2:
             rs = by.get((e, m), [])
