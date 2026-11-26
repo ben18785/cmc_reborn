@@ -53,6 +53,23 @@ COLOR.update({"iter_bins": "#1baf7a", "bb_bins": "#8fd8b8", "bb_logistic_ssa": C
               "bayes_gauss_nre_truth": "#4d4d4d", "bayes_gauss_nre_small_truth": "#b0b0b0"})
 
 
+def model_runs(r):
+    """forward-model runs: simulations (CMC, NRE training) or exact likelihood evaluations"""
+    f = r["final"]
+    if cfg["methods"][r["method"]].get("lik") == "nre":
+        return f.get("n_solves_train") or 0
+    return f.get("n_solves") or 0
+
+
+def surrogate_evals(r):
+    """evaluations of a learned likelihood (cheap network passes, not simulations)"""
+    return (r["final"].get("n_solves") or 0) if cfg["methods"][r["method"]].get("lik") == "nre" else 0
+
+
+def fmt_e(x):
+    return f"{x:.1e}" if x else "--"
+
+
 def pop_draws(e, m, sd_):
     """(S, n, p) populations of a fit; fits made before pop_draws existed have one, `draws`."""
     z = np.load(os.path.join(a.fits, e, f"{m}_seed{sd_}.npz"))
@@ -427,13 +444,13 @@ def bayes_summary(BEX, BM, name):
                 f"{lab} & {LABEL[m]} & " + (f"{np.mean(eds):.3f}" if eds[0] is not None else "--") + " & "
                 + ("-- & -- & " if point or not n_m else f"{cov_m}/{n_m} & {cov_s}/{n_s} & ")
                 + (f"{np.mean(upper_fixed):.2f}" if upper_fixed else "--")
-                + f" & {np.mean([(r['final'].get('n_solves') or 0) + (r['final'].get('n_solves_train') or 0) for r in rs]):.1e}"
+                + f" & {fmt_e(np.mean([model_runs(r) for r in rs]))} & {fmt_e(np.mean([surrogate_evals(r) for r in rs]))}"
                 + f" & {np.mean([r['final']['seconds'] for r in rs]) / 60:.1f} \\\\"
                 + (" \\addlinespace" if m == ms_[-1] and e != BEX[-1] else ""))
     open(os.path.join(a.out, f"{name}.tex"), "w").write(
-        "\\begin{tabular}{llrrrrrr}\n\\toprule\n"
+        "\\begin{tabular}{llrrrrrrr}\n\\toprule\n"
         "example (blocks$\\times$dims) & method & $\\theta$ ED & mean covered & sd covered & "
-        "sd of fixed rates & model evaluations & minutes \\\\\n\\midrule\n" + "\n".join(lines) + "\n\\bottomrule\n\\end{tabular}\n")
+        "sd of fixed rates & model runs & surrogate evals & minutes \\\\\n\\midrule\n" + "\n".join(lines) + "\n\\bottomrule\n\\end{tabular}\n")
 
     ncol = max(len(quantities(e)) for e in BEX)
     MKB = {"iter_logistic": "o", "iter_mlp": "P", "bb_logistic": "s", "bb_logistic_ssa": "s", "bayes_gauss": "^",
@@ -530,7 +547,7 @@ if ROB:
                 continue
             xs.append(n)
             ed.append(np.mean([r["final"]["ed_theta"] for r in rs]))
-            ev.append(np.mean([(r["final"].get("n_solves") or 0) + (r["final"].get("n_solves_train") or 0) for r in rs]))
+            ev.append(np.mean([model_runs(r) for r in rs]))
             c = [pop_cover(e, m, r["seed"]) for r in rs]
             c = [x for x in c if x is not None]
             cm.append(np.mean([x[0] for x in c]) if c else np.nan)
@@ -546,7 +563,7 @@ if ROB:
     axes[2].set_title("Test 2: 95% interval coverage\n(solid: population sd, dotted: mean)", fontsize=8)
     axes[2].axhline(0.95, color="k", lw=0.6, ls=":")
     axes[2].set_ylim(-0.03, 1.03)
-    axes[3].set_title("Test 2: forward-model evaluations", fontsize=8)
+    axes[3].set_title("Test 2: forward-model runs", fontsize=8)
     axes[3].set_yscale("log")
     axes[1].set_yscale("log")
     for ax in axes[1:]:
@@ -566,7 +583,7 @@ if ROB:
     for m in T1:
         rs = by[("gene_truth", m)]
         h0 = [np.mean([[x for x in r["history"] if "ed_theta" in x][0]["ed_theta"] for r in rs])]
-        lines.append(f"start at truth & {LABEL[m]} & -- & {h0[0]:.3f} & {np.mean([r['final']['ed_theta'] for r in rs]):.3f} & -- & -- \\\\")
+        lines.append(f"start at truth & {LABEL[m]} & -- & -- & {h0[0]:.3f} & {np.mean([r['final']['ed_theta'] for r in rs]):.3f} & -- & -- \\\\")
     lines[-1] += " \\addlinespace" if lines and NS else ""
     for n, e in NS:
         for m in T2:
@@ -576,11 +593,11 @@ if ROB:
             c = [x for x in (pop_cover(e, m, r["seed"]) for r in rs) if x is not None]
             cov = (f"{np.mean([x[0] for x in c]):.2f} & {np.mean([x[1] for x in c]):.2f}") if c else "-- & --"
             lines.append(f"{n} cells/block & {LABEL[m]} & "
-                         f"{np.mean([(r['final'].get('n_solves') or 0) + (r['final'].get('n_solves_train') or 0) for r in rs]):.1e} & -- & "
+                         f"{fmt_e(np.mean([model_runs(r) for r in rs]))} & {fmt_e(np.mean([surrogate_evals(r) for r in rs]))} & -- & "
                          f"{np.mean([r['final']['ed_theta'] for r in rs]):.3f} & {cov} \\\\")
     open(os.path.join(a.out, "robustness.tex"), "w").write(
-        "\\begin{tabular}{llrrrrr}\n\\toprule\n"
-        "setting & method & evaluations & $\\theta$ ED at start & $\\theta$ ED at end & mean covered & sd covered \\\\\n"
+        "\\begin{tabular}{llrrrrrr}\n\\toprule\n"
+        "setting & method & model runs & surrogate evals & $\\theta$ ED at start & $\\theta$ ED at end & mean covered & sd covered \\\\\n"
         "\\midrule\n" + "\n".join(lines) + "\n\\bottomrule\n\\end{tabular}\n")
 
 # ---- figure 10 + table: fish functional response (synthetic twins and real data)
