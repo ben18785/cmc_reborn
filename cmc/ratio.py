@@ -109,8 +109,8 @@ class ClassifierRatio:
         clf = self._make()
         kw = {}
         if weight is not None:
-            if self.kind not in ("logistic2", "logistic_bins"):
-                raise ValueError("data weights are supported for the logistic classifiers only")
+            if self.kind not in ("logistic2", "logistic_bins", "mlp"):
+                raise ValueError("data weights are supported for the logistic and mlp classifiers only")
             w = np.asarray(weight, float)
             kw[clf.steps[-1][0] + "__sample_weight"] = np.r_[w * len(w) / w.sum(), np.ones(len(x0))]
         self.clf = clf.fit(X, y, **kw)

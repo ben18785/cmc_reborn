@@ -29,7 +29,8 @@ a = ap.parse_args()
 cfg = yaml.safe_load(open(a.config))
 ex = cfg["examples"][a.example]
 meth = cfg["methods"][a.method]
-st = {**cfg["settings"], **ex.get("settings", {})}  # an example may override settings
+# an example may override settings, and a method may override both (e.g. a tweak of the sampler)
+st = {**cfg["settings"], **ex.get("settings", {}), **meth.get("settings", {})}
 model = make_model(ex.get("kind", a.example), **ex["model"])
 z = np.load(a.data)
 data = [z[f"block{j}"] for j in range(len(model.blocks))]
@@ -62,8 +63,17 @@ def callback(theta, logw, r):
             "ed_theta": s.get("ed_theta")}
 
 
+def _boot_one(args):
+    """one Bayesian-bootstrap replicate (module level so worker processes can run it)"""
+    ex_, s_, w_ = args
+    from threadpoolctl import threadpool_limits
+    m_ = make_model(ex_.get("kind", a.example), **ex_["model"])
+    with threadpool_limits(1):
+        return iterate_blocks(m_, data, fit_blocks, s_, data_weights=w_)
+
+
 common = dict(n_reps=st["n_reps"], n_fit=st["n_fit"], ess_frac=st["ess_frac"], shrink=st["shrink"],
-              clip=st["clip"], step=st["step"], threads=st["threads"], seed=a.seed)
+              clip=st["clip"], step=st["step"], rejuv=st.get("rejuv", "ess"), threads=st["threads"], seed=a.seed)
 if meth["kind"] == "one_step":
     s = Settings(ratio="vine", n_particles=st["one_step_particles"], n_sweeps=1,
                  noise=meth["noise"], **common)
@@ -77,16 +87,28 @@ elif meth["kind"] == "iterate":
 elif meth["kind"] == "bootstrap":
     # Bayesian bootstrap (Rubin 1981) of the iteration: Dirichlet(1,...,1) weights on the
     # observed cells of every block, one full iterated fit per replicate
+    # replicates are independent: run them in parallel worker processes (one BLAS thread each)
     common_b = {k: v for k, v in common.items() if k != "seed"}
-    pops, hist, t_tot = [], [], 0.0
+    jobs = []
     for b in range(meth["n_boot"]):
         wts = {j: rng.exponential(size=len(data[j])) for j in fit_blocks}
         wts = {j: v / v.mean() for j, v in wts.items()}
         s = Settings(ratio=meth["ratio"], n_particles=st["n_particles"], n_sweeps=ex["n_sweeps"],
                      noise=True, seed=1000 * a.seed + b, **common_b)
-        r_b = iterate_blocks(model, data, fit_blocks, s, data_weights=wts)
+        jobs.append((s, wts))
+    workers = int(meth.get("workers", st.get("boot_workers", 1)))
+    if workers > 1:
+        import multiprocessing as mp
+        from concurrent.futures import ProcessPoolExecutor
+        # fork: workers inherit the data and model from this script (no re-import)
+        with ProcessPoolExecutor(workers, mp_context=mp.get_context("fork")) as pool:
+            reps = list(pool.map(_boot_one, [(ex, s, w) for s, w in jobs]))
+    else:
+        reps = [_boot_one((ex, s, w)) for s, w in jobs]
+    pops, hist, t_tot = [], [], 0.0
+    for b, r_b in enumerate(reps):
         pops.append(resample(r_b["theta"], r_b["logw"], st["n_pop"], rng).astype(np.float32))
-        t_tot += r_b["history"][-1]["seconds"]
+        t_tot += r_b["history"][-1]["seconds"]  # summed CPU-side time over replicates
         n_sol = (hist[-1]["n_solves"] if hist else 0) + r_b["history"][-1]["n_solves"]
         hist.append(dict(replicate=b, mean=r_b["history"][-1]["mean"], sd=r_b["history"][-1]["sd"],
                          seconds=t_tot, n_solves=n_sol))

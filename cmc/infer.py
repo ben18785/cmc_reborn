@@ -43,7 +43,8 @@ class Settings:
     ess_frac: float = 0.5
     shrink: float = 0.95  # Liu-West a
     clip: float = 8.0  # |log r| cap per update
-    step: float = 1.0  # damping exponent on the multiplier
+    step: float = 1.0  # exponent on the multiplier: < 1 damps, > 1 over-relaxes (accelerated EM)
+    rejuv: str = "ess"  # "ess": resample-move when ESS < ess_frac * N; "always": after every update
     noise: bool = True
     seed: int = 0
     trunc_lvl: int | None = None  # vine baseline only
@@ -125,7 +126,7 @@ def iterate_blocks(model, data, fit_blocks, s: Settings, callback=None, data_wei
             lr = np.clip(est.log_ratio(q_eval), -s.clip, s.clip).reshape(N, reps)
             mult = logsumexp(lr, axis=1) - np.log(reps)
             logw = normalise(logw + s.step * mult)
-            if ess(logw) < s.ess_frac * N:
+            if s.rejuv == "always" or ess(logw) < s.ess_frac * N:
                 theta = rejuvenate(model, theta, logw, s.shrink, rng)
                 lat = model.latent(theta)
                 n_solves += 0 if model.stochastic_sim else N

@@ -144,6 +144,25 @@ examples:
     settings: {n_fit: 128000, n_particles: 160000}
     methods: [iter_mlp]
 
+  tw_gene8000:             # sampler tweaks (over-relaxed EM step, resample every update), larger budget
+    kind: gene
+    experiment: robustness
+    model: {capture: 0.3}
+    n_cells: 8000
+    holdout: []
+    n_sweeps: 40
+    settings: {n_fit: 32000, n_particles: 80000}
+    methods: [iter_mlp, iter_mlp_s15, iter_mlp_s2, iter_mlp_always, iter_mlp_always_s2]
+  tw_gene32000:             # sampler tweaks (over-relaxed EM step, resample every update), larger budget
+    kind: gene
+    experiment: robustness
+    model: {capture: 0.3}
+    n_cells: 32000
+    holdout: []
+    n_sweeps: 40
+    settings: {n_fit: 32000, n_particles: 80000}
+    methods: [iter_mlp, iter_mlp_s15, iter_mlp_s2, iter_mlp_always, iter_mlp_always_s2]
+
   # Gillespie examples (stochastic simulators; every output draw is a simulation).
   # bd_ssa: two genes, birth-death, exact snapshot likelihood (Poisson) as a control.
   # feedback_ssa: telegraph gene with negative feedback, mRNA and protein measured, no tractable likelihood.
@@ -223,6 +242,23 @@ examples:
     holdout: []
     n_sweeps: 150
     methods: [iter_logistic, iter_mlp, bb_logistic, bayes_gauss, bayes_gauss_nre]
+  tf_truth:                # fixed-point test on the transfection twin: start every method at the truth
+    kind: transfection
+    experiment: transfection_truth
+    model: {}
+    n_cells: 2565
+    holdout: []
+    n_sweeps: 60
+    methods: [iter_mlp_truth, bayes_gauss_truth, bayes_gauss_nre_truth]
+  tf_ssa_truth:
+    kind: transfection_ssa
+    experiment: transfection_truth
+    model: {}
+    n_cells: 2565
+    holdout: []
+    n_sweeps: 40
+    settings: {n_particles: 10000, n_reps: 2}
+    methods: [iter_mlp_truth, bayes_gauss_nre_truth]
   tf_egfp:
     kind: transfection
     experiment: transfection
@@ -311,6 +347,26 @@ methods:
     lik: nre
     n_comp: 1
   # started at the true population (robustness test 1); history records the drift
+  iter_mlp_s15:            # over-relaxed EM: multiplier raised to 1.5
+    kind: iterate
+    ratio: mlp
+    settings: {step: 1.5}
+  iter_mlp_s2:
+    kind: iterate
+    ratio: mlp
+    settings: {step: 2.0}
+  iter_mlp_always:         # resample-move after every update
+    kind: iterate
+    ratio: mlp
+    settings: {rejuv: always}
+  iter_mlp_always_s2:
+    kind: iterate
+    ratio: mlp
+    settings: {rejuv: always, step: 2.0}
+  iter_mlp_truth:
+    kind: iterate
+    ratio: mlp
+    init: truth
   iter_logistic_truth:
     kind: iterate
     ratio: logistic2

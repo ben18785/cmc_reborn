@@ -33,7 +33,7 @@ examples:
     n_cells: 200
     holdout: []
     n_sweeps: 2
-    methods: [iter_logistic, bb_logistic, bayes_gauss, bayes_dpm_nre]
+    methods: [iter_logistic, bb_logistic, bayes_gauss, bayes_dpm_nre, bb_mlp, iter_mlp_always_s2]
   linear_bayes:
     kind: linear
     model: {p: 5, n_blocks: 24, d: 2, sigma: 0.5}
@@ -138,6 +138,15 @@ methods:
     kind: bootstrap
     ratio: logistic2
     n_boot: 3
+  bb_mlp:
+    kind: bootstrap
+    ratio: mlp
+    n_boot: 3
+    workers: 2
+  iter_mlp_always_s2:
+    kind: iterate
+    ratio: mlp
+    settings: {rejuv: always, step: 2.0}
   bayes_gauss:
     kind: bayes
     lik: exact

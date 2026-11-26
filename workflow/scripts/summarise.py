@@ -51,6 +51,15 @@ LABEL.update({"bayes_gauss_nre": "Bayes, Gaussian mixed effects, likelihood-free
               "iter_bins": "Iterated, logistic on counts", "bb_bins": "Iterated, logistic on counts + Bayesian bootstrap"})
 COLOR.update({"iter_bins": "#1baf7a", "bb_bins": "#8fd8b8", "bb_logistic_ssa": COLOR["bb_logistic"], "iter_logistic_truth": COLOR["iter_logistic"], "bayes_gauss_truth": COLOR["bayes_gauss"],
               "bayes_gauss_nre_truth": "#4d4d4d", "bayes_gauss_nre_small_truth": "#b0b0b0"})
+LABEL.update({"iter_mlp_s15": "Iterated, MLP, step 1.5", "iter_mlp_s2": "Iterated, MLP, step 2",
+              "iter_mlp_always": "Iterated, MLP, resample every update",
+              "iter_mlp_always_s2": "Iterated, MLP, resample every update, step 2",
+              "iter_mlp_truth": "Iterated, MLP"})
+for k in ("iter_mlp_s15", "iter_mlp_s2", "iter_mlp_always", "iter_mlp_always_s2", "iter_mlp_truth"):
+    COLOR.setdefault(k, COLOR["iter_mlp"])
+for k in list(cfg["methods"]):  # any method without a label falls back to its key
+    LABEL.setdefault(k, k.replace("_", " "))
+    COLOR.setdefault(k, "#999999")
 
 
 def model_runs(r):
@@ -379,7 +388,7 @@ if TRACK:
 # Each method stores S populations (posterior draws / bootstrap replicates; S = 1 for CMC). For every
 # quantity we take the population mean and the population sd (cell-to-cell spread) in each of them.
 BM = [m for m in ["iter_logistic", "bb_logistic", "bayes_gauss", "bayes_dpm", "bayes_dpm_nre"] if m in cfg["methods"]]
-BEX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") not in ("robustness", "ssa", "fish", "transfection")
+BEX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") not in ("robustness", "ssa", "fish", "transfection", "transfection_truth")
        and any((e, m) in by for m in BM if cfg["methods"][m]["kind"] in ("bootstrap", "bayes"))]
 SSA_M = [m for m in ["iter_logistic", "iter_mlp", "bb_logistic_ssa", "bayes_gauss", "bayes_gauss_nre"] if m in cfg["methods"]]
 SSA_EX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") == "ssa" and any(k[0] == e for k in by)]
