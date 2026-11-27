@@ -94,6 +94,22 @@ jobs:
         run: |
           echo "NLMIXR_RSCRIPT=$MAMBA_ROOT_PREFIX/envs/nlmixr2/bin/Rscript" >> "$GITHUB_ENV"
           micromamba list -n nlmixr2 > nlmixr2-freeze.txt
+      - uses: julia-actions/setup-julia@v2  # Julia 1.5.2 for the PEPSDI baseline (the authors' version)
+        if: startsWith(matrix.method, 'pepsdi')
+        with:
+          version: "1.5.2"
+      - name: environment for the PEPSDI baseline
+        if: startsWith(matrix.method, 'pepsdi')
+        run: |
+          # General registry as of 2021-02-28: packages resolve as in the authors' environment (fit_pepsdi.jl)
+          REG=~/.julia/registries/General
+          mkdir -p $REG
+          git -C $REG init -q
+          git -C $REG remote add origin https://github.com/JuliaRegistries/General.git
+          git -C $REG fetch -q --depth 1 origin 09e06dd261b24e047c2fb59afda566d16c4e8725
+          git -C $REG checkout -q FETCH_HEAD
+          julia --project=workflow/envs/pepsdi -e 'using Pkg; isfile(joinpath(dirname(Base.active_project()), "Manifest.toml")) || Pkg.resolve(); Pkg.instantiate(); Pkg.precompile(); Pkg.status(mode=Pkg.PKGMODE_MANIFEST)'
+          cp workflow/envs/pepsdi/Manifest.toml pepsdi-Manifest.toml
       - name: results directory (a config may set `results:`)
         run: echo "RES=$(python -c "import yaml; print(yaml.safe_load(open('${{ inputs.config }}')).get('results', 'results'))")" >> "$GITHUB_ENV"
       - name: fit
@@ -113,6 +129,7 @@ jobs:
             mlnpe-freeze.txt
             pmcore-freeze.txt
             workflow/scripts/pmcore_tf/Cargo.lock
+            pepsdi-Manifest.toml
   summarise:
     needs: fit
     if: always()

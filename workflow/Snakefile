@@ -52,11 +52,13 @@ rule data:
 # external methods (competitors) run with their own code, often in their own environment, and write
 # population draws (npz) or a Gaussian population (json) that `fit` scores like every other method
 EXTERNAL = {m: C["methods"][m].get("tool", "arruda") for m in C["methods"] if C["methods"][m]["kind"] == "external"}
-EXT_SUFFIX = {"arruda": "npz", "sourcerer": "npz", "neb": "npz", "npmle": "npz", "pmetrics": "npz", "mlnpe": "npz", "nlmixr2": "json"}
+EXT_SUFFIX = {"arruda": "npz", "sourcerer": "npz", "neb": "npz", "npmle": "npz", "pmetrics": "npz", "mlnpe": "npz", "pepsdi": "npz", "nlmixr2": "json"}
 ARRUDA_REPO = config.get("arruda_repo", "external/Amortized-NLME-Models")
 ARRUDA_COMMIT = "592c8912300c68ab241160eb3e739a2651209a03"
 SOURCERER_REPO = config.get("sourcerer_repo", "external/sourcerer")
 SOURCERER_COMMIT = "f14f84030c96ef080e011fb65e83bc9c04a54b8c"
+PEPSDI_REPO = config.get("pepsdi_repo", "external/PEPSDI")
+PEPSDI_COMMIT = "2255f1543ee601aa71f6bb46bc40f85e25e08537"
 
 
 def external_file(w):
@@ -210,6 +212,35 @@ rule mlnpe:
     shell:
         "PYTHONPATH=. python workflow/scripts/fit_mlnpe.py --example {wildcards.example} --method {wildcards.method} "
         "--seed {wildcards.seed} --config {params.cfg} --data {input.data} --out {output}"
+
+
+rule pepsdi_repo:
+    output:
+        directory(PEPSDI_REPO),
+    shell:
+        "git clone -q https://github.com/cvijoviclab/PEPSDI {output} && "
+        "git -C {output} checkout -q " + PEPSDI_COMMIT
+
+
+rule pepsdi:
+    input:
+        repo=PEPSDI_REPO,
+        data=RES + "/data/{example}_seed{seed}.npz",
+        code=CODE + ["workflow/scripts/fit_pepsdi.jl", "workflow/scripts/pepsdi_io.py", "workflow/envs/pepsdi/Project.toml"],
+    output:
+        RES + "/external/pepsdi/{example}/{method}_seed{seed}.npz",
+    params:
+        cfg=CFG,
+        julia=config.get("julia", "julia"),
+        work=lambda w: RES + f"/external/pepsdi/{w.example}/{w.method}_seed{w.seed}_work",
+    threads: 2
+    shell:
+        "PYTHONPATH=. python workflow/scripts/pepsdi_io.py prep --example {wildcards.example} --method {wildcards.method} "
+        "--seed {wildcards.seed} --config {params.cfg} --data {input.data} --work {params.work} && "
+        "JULIA_NUM_THREADS={threads} {params.julia} --project=$PWD/workflow/envs/pepsdi workflow/scripts/fit_pepsdi.jl "
+        "--repo {input.repo} --work {params.work} && "
+        "PYTHONPATH=. python workflow/scripts/pepsdi_io.py collect --example {wildcards.example} --method {wildcards.method} "
+        "--seed {wildcards.seed} --config {params.cfg} --work {params.work} --out {output}"
 
 
 rule nlme_csv:
