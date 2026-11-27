@@ -49,10 +49,19 @@ rule data:
         "--seed {wildcards.seed} --config {params.cfg} --out {output}"
 
 
-# external methods run in their own environment and write population draws that `fit` scores
-EXTERNAL = {m for m in C["methods"] if C["methods"][m]["kind"] == "external"}
+# external methods (competitors) run with their own code, often in their own environment, and write
+# population draws (npz) or a Gaussian population (json) that `fit` scores like every other method
+EXTERNAL = {m: C["methods"][m].get("tool", "arruda") for m in C["methods"] if C["methods"][m]["kind"] == "external"}
+EXT_SUFFIX = {"arruda": "npz", "sourcerer": "npz", "nlmixr2": "json"}
 ARRUDA_REPO = config.get("arruda_repo", "external/Amortized-NLME-Models")
 ARRUDA_COMMIT = "592c8912300c68ab241160eb3e739a2651209a03"
+SOURCERER_REPO = config.get("sourcerer_repo", "external/sourcerer")
+SOURCERER_COMMIT = "f14f84030c96ef080e011fb65e83bc9c04a54b8c"
+
+
+def external_file(w):
+    tool = EXTERNAL[w.method]
+    return RES + f"/external/{tool}/{w.example}/{w.method}_seed{w.seed}.{EXT_SUFFIX[tool]}"
 
 
 rule arruda_repo:
@@ -61,6 +70,14 @@ rule arruda_repo:
     shell:
         "git clone -q https://github.com/arrjon/Amortized-NLME-Models {output} && "
         "git -C {output} checkout -q " + ARRUDA_COMMIT
+
+
+rule sourcerer_repo:
+    output:
+        directory(SOURCERER_REPO),
+    shell:
+        "git clone -q https://github.com/mackelab/sourcerer {output} && "
+        "git -C {output} checkout -q " + SOURCERER_COMMIT
 
 
 rule data_fine:
@@ -85,7 +102,7 @@ rule arruda:
         fine=lambda w: [] if "data_tracks" in C["examples"][w.example] or C["examples"][w.example].get("kind") != "transfection_ssa"
         else [RES + f"/data_fine/{w.example}_seed{w.seed}.npz"],
     output:
-        RES + "/external/{example}/{method}_seed{seed}.npz",
+        RES + "/external/arruda/{example}/{method}_seed{seed}.npz",
     params:
         cfg=CFG,
         py=config.get("arruda_python", "python"),
@@ -97,11 +114,57 @@ rule arruda:
         "--seed {wildcards.seed} --config {params.cfg} --repo {input.repo} --out {output} {params.fine}"
 
 
+rule sourcerer:
+    input:
+        repo=SOURCERER_REPO,
+        data=RES + "/data/{example}_seed{seed}.npz",
+        code=CODE + ["workflow/scripts/fit_sourcerer.py"],
+    output:
+        RES + "/external/sourcerer/{example}/{method}_seed{seed}.npz",
+    params:
+        cfg=CFG,
+    conda:
+        "envs/sourcerer.yaml"
+    shell:
+        "PYTHONPATH=. python workflow/scripts/fit_sourcerer.py --example {wildcards.example} --method {wildcards.method} "
+        "--seed {wildcards.seed} --config {params.cfg} --data {input.data} --repo {input.repo} --out {output}"
+
+
+rule nlme_csv:
+    input:
+        data=RES + "/data/{example}_seed{seed}.npz",
+        code=CODE + ["workflow/scripts/nlme_csv.py"],
+    output:
+        RES + "/nlme/{example}_seed{seed}.csv",
+    params:
+        cfg=CFG,
+    conda:
+        ENV
+    shell:
+        "PYTHONPATH=. python workflow/scripts/nlme_csv.py --example {wildcards.example} --config {params.cfg} "
+        "--data {input.data} --out {output}"
+
+
+rule nlmixr2:
+    input:
+        csv=RES + "/nlme/{example}_seed{seed}.csv",
+        code="workflow/scripts/fit_nlmixr2.R",
+    output:
+        RES + "/external/nlmixr2/{example}/{method}_seed{seed}.json",
+    params:
+        est=lambda w: C["methods"][w.method]["est"],
+        rscript=config.get("nlmixr_rscript", "Rscript"),
+    conda:
+        "envs/nlmixr2.yaml"
+    shell:
+        "{params.rscript} workflow/scripts/fit_nlmixr2.R {input.csv} {params.est} {wildcards.seed} {output}"
+
+
 rule fit:
     input:
         data=RES + "/data/{example}_seed{seed}.npz",
         code=CODE + ["workflow/scripts/fit.py"],
-        external=lambda w: [RES + f"/external/{w.example}/{w.method}_seed{w.seed}.npz"] if w.method in EXTERNAL else [],
+        external=lambda w: [external_file(w)] if w.method in EXTERNAL else [],
     output:
         json=RES + "/fits/{example}/{method}_seed{seed}.json",
         npz=RES + "/fits/{example}/{method}_seed{seed}.npz",

@@ -128,16 +128,28 @@ elif meth["kind"] == "bayes":
                history=r_b["history"] + [dict(seconds=r_b["seconds"], n_solves=r_b["n_solves"],
                                               n_solves_train=r_b["n_solves_train"])])
 elif meth["kind"] == "external":
-    # a method run elsewhere in its own environment (e.g. fit_arruda.py): score its population draws
-    zx = np.load(a.external)
+    # a method run elsewhere in its own environment: score its populations like every other method.
+    # npz (fit_arruda.py, fit_sourcerer.py): pop_draws (S x n x p); json (fit_nlmixr2.R): a Gaussian
+    # population (mean, pop_cov) and the sampling covariance of its mean, from which S populations are drawn
     s = Settings(ratio="external", n_sweeps=0)
-    pop_draws = zx["pop_draws"].astype(float)
+    if a.external.endswith(".json"):
+        zx = json.load(open(a.external))
+        mean_hat, pop_cov, mean_cov = (np.array(zx[k], float) for k in ("mean", "pop_cov", "mean_cov"))
+        S = 50 if zx.get("cov_ok") else 1
+        means = rng.multivariate_normal(mean_hat, mean_cov, size=S) if S > 1 else mean_hat[None]
+        pop_draws = np.array([rng.multivariate_normal(m_, pop_cov, size=st["n_pop"]) for m_ in means])
+        extra = dict(mean_hat=mean_hat.tolist(), pop_cov=pop_cov.tolist(), cov_ok=bool(zx.get("cov_ok")),
+                     objf=zx.get("objf"))
+        n_train_ext = 0
+    else:
+        zx = dict(np.load(a.external))
+        pop_draws = zx["pop_draws"].astype(float)
+        extra = {k: np.asarray(zx[k]).tolist() for k in ("beta_hat", "psi_hat", "steps") if k in zx}
+        n_train_ext = int(zx["n_train_sims"])
     pooled = pop_draws.reshape(-1, model.p)
     res = dict(theta=pooled, logw=np.full(len(pooled), -np.log(len(pooled))), pop_draws=pop_draws,
-               history=[dict(seconds=float(zx["seconds"]), n_solves=0,
-                             n_solves_train=int(zx["n_train_sims"]), n_cells=int(zx["n_cells"]),
-                             n_times=int(zx["n_times"]), beta_hat=zx["beta_hat"].tolist(),
-                             psi_hat=zx["psi_hat"].tolist())])
+               history=[dict(seconds=float(zx["seconds"]), n_solves=0, n_solves_train=n_train_ext,
+                             n_cells=int(zx["n_cells"]), n_times=int(zx["n_times"]), **extra)])
 else:
     raise ValueError(meth["kind"])
 

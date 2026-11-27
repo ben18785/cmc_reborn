@@ -63,8 +63,9 @@ LABEL.update({"bb_mlp": "Iterated, MLP + Bayesian bootstrap", "bb_mlp_ssa": "Ite
               "bayes_dpm_nre_big": "Bayes, DP mixture, likelihood-free",
               "bayes_dpm_nre_big1": "Bayes, DP mixture, likelihood-free"})
 COLOR.update({"bb_mlp": "#f4a582", "bb_mlp_ssa": "#f4a582"})
-LABEL["arruda"] = "Amortised NLME (Arruda et al.)"
-COLOR["arruda"] = "#1b7837"
+LABEL.update({"arruda": "Amortised NLME (Arruda et al.)", "sourcerer": "Sourcerer (Vetter et al.)",
+              "nlme_saem": "NLME software, SAEM (nlmixr2)", "nlme_focei": "NLME software, FOCEI (nlmixr2)"})
+COLOR.update({"arruda": "#1b7837", "sourcerer": "#b35806", "nlme_saem": "#2166ac", "nlme_focei": "#92c5de"})
 for k in ("bayes_gauss_nre_big", "bayes_gauss_nre_big1", "bayes_dpm_nre_big", "bayes_dpm_nre_big1"):
     COLOR[k] = "#4d4d4d"
 for k in list(cfg["methods"]):  # any method without a label falls back to its key
@@ -398,11 +399,11 @@ if TRACK:
 # Each method stores S populations (posterior draws / bootstrap replicates; S = 1 for CMC). For every
 # quantity we take the population mean and the population sd (cell-to-cell spread) in each of them.
 BM = [m for m in ["iter_logistic", "iter_mlp", "bb_logistic", "bb_mlp", "bayes_gauss", "bayes_dpm", "bayes_dpm_nre",
-                    "bayes_dpm_nre_big", "bayes_dpm_nre_big1"] if m in cfg["methods"]]
+                    "bayes_dpm_nre_big", "bayes_dpm_nre_big1", "sourcerer"] if m in cfg["methods"]]
 BEX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") not in ("robustness", "ssa", "fish", "transfection", "transfection_truth")
        and any((e, m) in by for m in BM if cfg["methods"][m]["kind"] in ("bootstrap", "bayes"))]
 SSA_M = [m for m in ["iter_logistic", "iter_mlp", "bb_logistic_ssa", "bb_mlp_ssa", "bayes_gauss", "bayes_gauss_nre",
-                       "bayes_gauss_nre_big", "bayes_gauss_nre_big1"] if m in cfg["methods"]]
+                       "bayes_gauss_nre_big", "bayes_gauss_nre_big1", "sourcerer"] if m in cfg["methods"]]
 SSA_EX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") == "ssa" and any(k[0] == e for k in by)]
 PRETTY = {"log_delta": "log $\\delta$", "log_gamma": "log $\\gamma$", "log_km0": "log $k m_0$",
           "log_t0": "log $t_0$", "log_offset": "log offset", "log_sigma": "log $\\sigma$", "log_k": "log $k$",
@@ -523,7 +524,7 @@ if SSA_EX:
     bayes_summary(SSA_EX, SSA_M, "ssa")
 TF_EX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") == "transfection" and any(k[0] == e for k in by)]
 TF_M = [m for m in ["iter_logistic", "iter_mlp", "bb_logistic", "bb_logistic_ssa", "bb_mlp", "bayes_gauss", "bayes_gauss_nre",
-                     "bayes_gauss_nre_big1", "arruda"]
+                     "bayes_gauss_nre_big1", "arruda", "sourcerer", "nlme_saem", "nlme_focei"]
         if m in cfg["methods"]]
 if TF_EX:
     bayes_summary(TF_EX, TF_M, "transfection")
@@ -547,7 +548,7 @@ if ROB:
     NS = sorted([(cfg["examples"][e]["n_cells"], e) for e in ROB if e.startswith("gene_n")])
     T1 = [m for m in ["iter_logistic_truth", "bayes_gauss_truth", "bayes_gauss_nre_truth",
                       "bayes_gauss_nre_small_truth"] if ("gene_truth", m) in by]
-    T2 = [m for m in ["iter_logistic", "iter_mlp", "bb_logistic", "bb_mlp", "bayes_gauss", "bayes_gauss_nre", "bayes_gauss_nre_big"] if any((e, m) in by for _, e in NS)]
+    T2 = [m for m in ["iter_logistic", "iter_mlp", "bb_logistic", "bb_mlp", "bayes_gauss", "bayes_gauss_nre", "bayes_gauss_nre_big", "sourcerer"] if any((e, m) in by for _, e in NS)]
     fig, axes = plt.subplots(1, 4, figsize=(12.5, 2.9))
     ax = axes[0]
     for m in T1:
@@ -627,7 +628,7 @@ if ROB:
 FEX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") == "fish" and any(k[0] == e for k in by)]
 if FEX:
     VOR = np.log(5.0)  # log a above this: voracious (the two synthetic modes are at -2.2 and 5.7)
-    FM = [m for m in ["iter_logistic", "iter_bins", "iter_mlp", "bb_bins", "bayes_gauss", "bayes_dpm"]
+    FM = [m for m in ["iter_logistic", "iter_bins", "iter_mlp", "bb_bins", "bayes_gauss", "bayes_dpm", "sourcerer"]
           if any((e, m) in by for e in FEX)]
     fmodel = make_model("fish")
 

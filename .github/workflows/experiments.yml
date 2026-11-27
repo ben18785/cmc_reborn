@@ -65,21 +65,35 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements-lock.txt && pip install -e .
+      - name: CPU PyTorch for the Sourcerer baseline
+        if: startsWith(matrix.method, 'sourcerer')
+        run: pip install -r requirements-sourcerer.txt --index-url https://download.pytorch.org/whl/cpu
+      - uses: mamba-org/setup-micromamba@v2  # R + nlmixr2 for the NLME software baseline
+        if: startsWith(matrix.method, 'nlme')
+        with:
+          environment-file: workflow/envs/nlmixr2.yaml
+          cache-environment: true
+      - name: Rscript of the nlmixr2 environment
+        if: startsWith(matrix.method, 'nlme')
+        run: |
+          echo "NLMIXR_RSCRIPT=$MAMBA_ROOT_PREFIX/envs/nlmixr2/bin/Rscript" >> "$GITHUB_ENV"
+          micromamba list -n nlmixr2 > nlmixr2-freeze.txt
       - name: results directory (a config may set `results:`)
         run: echo "RES=$(python -c "import yaml; print(yaml.safe_load(open('${{ inputs.config }}')).get('results', 'results'))")" >> "$GITHUB_ENV"
       - name: fit
         run: |
           snakemake $RES/fits/${{ matrix.example }}/${{ matrix.method }}_seed${{ matrix.seed }}.json \
             --cores 2 --configfile ${{ inputs.config }} --config config_file=${{ inputs.config }} results=$RES \
-            arruda_python=${ARRUDA_PY:-python}
+            arruda_python=${ARRUDA_PY:-python} nlmixr_rscript=${NLMIXR_RSCRIPT:-Rscript}
       - uses: actions/upload-artifact@v4
         with:
           name: fit-${{ matrix.name }}
           path: |
             ${{ env.RES }}/fits/${{ matrix.example }}/${{ matrix.method }}_seed${{ matrix.seed }}.*
             ${{ env.RES }}/data/${{ matrix.example }}_seed${{ matrix.seed }}.npz
-            ${{ env.RES }}/external/${{ matrix.example }}/${{ matrix.method }}_seed${{ matrix.seed }}.npz
+            ${{ env.RES }}/external/*/${{ matrix.example }}/${{ matrix.method }}_seed${{ matrix.seed }}.*
             arruda-freeze.txt
+            nlmixr2-freeze.txt
   summarise:
     needs: fit
     if: always()

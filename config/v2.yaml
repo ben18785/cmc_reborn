@@ -36,21 +36,21 @@ examples:
     n_cells: 2000
     holdout: []
     n_sweeps: 40
-    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_dpm, bayes_dpm_nre_big]
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_dpm, bayes_dpm_nre_big, sourcerer]
   growth_snapshot:
     kind: growth
     model: {noise_sd: 0.1, design: snapshot}
     n_cells: 2000
     holdout: []
     n_sweeps: 40
-    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_dpm, bayes_dpm_nre_big]
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_dpm, bayes_dpm_nre_big, sourcerer]
   growth_tracked:
     kind: growth
     model: {noise_sd: 0.1, design: tracked}
     n_cells: 2000
     holdout: []
     n_sweeps: 120
-    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_dpm, bayes_dpm_nre_big1]
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_dpm, bayes_dpm_nre_big1, sourcerer]
   gene_n2000:
     kind: gene
     experiment: robustness
@@ -58,7 +58,7 @@ examples:
     n_cells: 2000
     holdout: []
     n_sweeps: 40
-    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big]
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big, sourcerer]
   gene_n8000:
     kind: gene
     experiment: robustness
@@ -66,7 +66,7 @@ examples:
     n_cells: 8000
     holdout: []
     n_sweeps: 40
-    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big]
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big, sourcerer]
   gene_n32000:
     kind: gene
     experiment: robustness
@@ -74,7 +74,7 @@ examples:
     n_cells: 32000
     holdout: []
     n_sweeps: 40
-    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big]
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big, sourcerer]
   bd_ssa:
     kind: bd_ssa
     experiment: ssa
@@ -83,7 +83,7 @@ examples:
     holdout: []
     n_sweeps: 40
     settings: &id001 {n_particles: 40000, n_fit: 16000, n_reps: 2}
-    methods: [iter_mlp, bb_mlp_ssa, bayes_gauss, bayes_gauss_nre_big]
+    methods: [iter_mlp, bb_mlp_ssa, bayes_gauss, bayes_gauss_nre_big, sourcerer]
   feedback_ssa:
     kind: feedback_ssa
     experiment: ssa
@@ -92,7 +92,7 @@ examples:
     holdout: []
     n_sweeps: 40
     settings: *id001
-    methods: [iter_mlp, bb_mlp_ssa, bayes_gauss_nre_big]
+    methods: [iter_mlp, bb_mlp_ssa, bayes_gauss_nre_big, sourcerer]
   bd_ssa_tracked:
     kind: bd_ssa
     experiment: ssa
@@ -101,7 +101,7 @@ examples:
     holdout: []
     n_sweeps: 160
     settings: &id002 {n_particles: 20000, n_fit: 16000, n_reps: 2}
-    methods: [iter_mlp, bayes_gauss_nre_big1, arruda]
+    methods: [iter_mlp, bayes_gauss, bayes_gauss_nre_big1, sourcerer]
   feedback_ssa_tracked:
     kind: feedback_ssa
     experiment: ssa
@@ -110,7 +110,7 @@ examples:
     holdout: []
     n_sweeps: 120
     settings: *id002
-    methods: [iter_mlp, bayes_gauss_nre_big1, arruda]
+    methods: [iter_mlp, bayes_gauss_nre_big1, sourcerer]
   fish_sim:
     kind: fish
     experiment: fish
@@ -118,7 +118,7 @@ examples:
     n_cells: 95
     holdout: []
     n_sweeps: 40
-    methods: [iter_bins, bb_bins, bayes_gauss, bayes_dpm]
+    methods: [iter_bins, bb_bins, bayes_gauss, bayes_dpm, sourcerer]
   fish_real:
     kind: fish
     experiment: fish
@@ -127,7 +127,7 @@ examples:
     n_cells: 95
     holdout: []
     n_sweeps: 40
-    methods: [iter_bins, bb_bins, bayes_gauss, bayes_dpm]
+    methods: [iter_bins, bb_bins, bayes_gauss, bayes_dpm, sourcerer]
   fish_sim_big:
     kind: fish
     experiment: fish
@@ -143,7 +143,7 @@ examples:
     n_cells: 2565
     holdout: []
     n_sweeps: 150
-    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1, arruda]
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1, arruda, sourcerer, nlme_saem, nlme_focei]
   tf_egfp:
     kind: transfection
     experiment: transfection
@@ -152,7 +152,7 @@ examples:
     n_cells: 2565
     holdout: []
     n_sweeps: 150
-    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1, arruda]
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1, arruda, sourcerer, nlme_saem, nlme_focei]
   tf_d2egfp:
     kind: transfection
     experiment: transfection
@@ -161,7 +161,7 @@ examples:
     n_cells: 2923
     holdout: []
     n_sweeps: 150
-    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1, arruda]
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1, arruda, sourcerer, nlme_saem, nlme_focei]
   tf_ssa_sim:
     kind: transfection_ssa
     experiment: transfection
@@ -170,7 +170,7 @@ examples:
     holdout: []
     n_sweeps: 100
     settings: *id002
-    methods: [iter_mlp, bayes_gauss_nre_big1, arruda]
+    methods: [iter_mlp, bayes_gauss_nre_big1, arruda, sourcerer]
   tf_ssa_egfp:
     kind: transfection_ssa
     experiment: transfection
@@ -180,10 +180,23 @@ examples:
     holdout: []
     n_sweeps: 100
     settings: *id002
-    methods: [iter_mlp, bayes_gauss_nre_big1, arruda]
+    methods: [iter_mlp, bayes_gauss_nre_big1, arruda, sourcerer]
 methods:
+  sourcerer:               # Vetter et al. (2024): their code and default settings (workflow/scripts/fit_sourcerer.py)
+    kind: external
+    tool: sourcerer
+    n_train: 200000        # surrogate training simulations (as the likelihood-free Bayes runs, 200k per block)
+  nlme_saem:               # nlmixr2 (SAEM), the transfection ODE as a practitioner would fit it
+    kind: external
+    tool: nlmixr2
+    est: saem
+  nlme_focei:
+    kind: external
+    tool: nlmixr2
+    est: focei
   arruda:                  # Arruda et al. (2024): their code and pretrained network (workflow/scripts/fit_arruda.py)
     kind: external
+    tool: arruda
     n_multi_starts: 10
     n_samples_opt: 100
     n_mcmc: 10000

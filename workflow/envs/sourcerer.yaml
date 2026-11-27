@@ -1,0 +1,11 @@
+# Environment for the Sourcerer baseline (rule `sourcerer`): the cmc environment plus CPU PyTorch.
+# Keep in sync with requirements-sourcerer.txt (GitHub Actions).
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - -r ../../requirements-lock.txt
+      - --extra-index-url https://download.pytorch.org/whl/cpu
+      - torch==2.14.0

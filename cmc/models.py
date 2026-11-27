@@ -423,9 +423,45 @@ class BirthDeathSSA(SSAModel):
 
     def log_lik(self, latent, q):
         if self.meta["design"] != "snapshot":
-            raise NotImplementedError("exact likelihood implemented for snapshots only")
+            raise NotImplementedError("snapshot likelihood; tracked cells use block_log_lik")
         from scipy.special import gammaln
         return np.sum(q * np.log(latent) - latent - gammaln(q + 1), axis=-1)
+
+    def block_log_lik(self, theta, cols, q):
+        """Exact log-likelihood of outputs `cols` for each cell. Snapshots: Poisson. Tracked cells:
+        each gene is an immigration-death (M/M/infinity) chain, so over an interval of length d the
+        x molecules present survive independently with probability p = exp(-gamma d) and the new
+        ones are Poisson(k/gamma (1 - p)):
+            P(x' | x) = sum_j Binom(j; x, p) Pois(x' - j; k/gamma (1 - p)),
+        with x = 0 at t = 0. The trajectory likelihood is the product over intervals."""
+        if self.meta["design"] == "snapshot":
+            return self.log_lik(self.latent_cols(theta, cols), q)
+        from scipy.special import gammaln, logsumexp
+
+        cols = np.asarray(cols)
+        t_idx, s_idx = cols // self.n_obs, cols % self.n_obs
+        k, g = np.exp(theta[:, :2]), np.exp(theta[:, 2:4])
+        out = np.zeros(len(theta))
+        for s in range(self.n_obs):
+            sel = np.where(s_idx == s)[0]
+            sel = sel[np.argsort(t_idx[sel])]
+            ts = self.times[t_idx[sel]]
+            x_prev, t_prev = np.zeros(len(theta)), 0.0
+            for c, t in zip(sel, ts):
+                x = q[:, c]
+                p = np.exp(-g[:, s] * (t - t_prev))
+                lam = k[:, s] / g[:, s] * (1 - p)
+                J = int(min(x_prev.max(), x.max())) + 1
+                j = np.arange(J)[None, :]
+                ok = (j <= x_prev[:, None]) & (j <= x[:, None])
+                jj = np.where(ok, j, 0)
+                lb = (gammaln(x_prev[:, None] + 1) - gammaln(jj + 1) - gammaln(x_prev[:, None] - jj + 1)
+                      + jj * np.log(p)[:, None] + (x_prev[:, None] - jj) * np.log1p(-p)[:, None])
+                m = x[:, None] - jj
+                lp = m * np.log(lam)[:, None] - lam[:, None] - gammaln(m + 1)
+                out += logsumexp(np.where(ok, lb + lp, -np.inf), axis=1)
+                x_prev, t_prev = x, t
+        return out
 
     def sample_population(self, n, rng):
         return rng.multivariate_normal(self.pop_mean, self.pop_cov, size=n)

@@ -162,3 +162,25 @@ def test_transfection_models():
     y = s.simulate(ts, rng)
     assert np.allclose(y[:, :19], np.log(np.exp(ts[:, 6:7])), atol=1e-4)
     assert (y[:, -1] > y[:, 0]).mean() > 0.95
+
+
+def test_birth_death_tracked_exact_likelihood():
+    """transition pmf sums to one and the trajectory likelihood matches Gillespie frequencies"""
+    import numpy as np
+    from cmc.models import BirthDeathSSA
+
+    m = BirthDeathSSA(times=(0.5, 1.5), design="tracked")
+    theta = np.log([[4.0, 2.0, 0.5, 0.8]])
+    rng = np.random.default_rng(0)
+    # normalisation: summing over a grid of trajectories of gene 1 (gene 2 fixed) gives P(gene 2 path)
+    grid = [(a, b) for a in range(40) for b in range(40)]
+    q = np.array([[a, 1, b, 1] for a, b in grid], float)
+    ll = m.block_log_lik(np.repeat(theta, len(q), 0), m.blocks[0], q)
+    p_g2 = m.block_log_lik(theta, [1, 3], np.array([[1.0, 1.0]]))
+    assert np.isclose(np.exp(ll).sum(), np.exp(p_g2[0]), rtol=1e-6)
+    # Monte Carlo: frequency of one trajectory under the Gillespie simulator
+    sims = m.simulate_cols(np.repeat(theta, 200000, 0), m.blocks[0], rng)
+    target = np.array([2.0, 1.0, 4.0, 2.0])
+    freq = np.mean(np.all(sims == target, axis=1))
+    exact = np.exp(m.block_log_lik(theta, m.blocks[0], target[None])[0])
+    assert abs(freq - exact) < 4 * np.sqrt(exact / 200000) + 1e-4
