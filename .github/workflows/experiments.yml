@@ -67,7 +67,7 @@ jobs:
       - run: pip install -r requirements-lock.txt && pip install -e .
       - name: CPU PyTorch for the Sourcerer baseline
         if: startsWith(matrix.method, 'sourcerer')
-        run: pip install -r requirements-sourcerer.txt --index-url https://download.pytorch.org/whl/cpu
+        run: pip install -r requirements-sourcerer.txt
       - uses: mamba-org/setup-micromamba@v2  # R + nlmixr2 for the NLME software baseline
         if: startsWith(matrix.method, 'nlme')
         with:
