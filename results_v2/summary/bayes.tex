@@ -1,0 +1,21 @@
+\begin{tabular}{llrrrrrrr}
+\toprule
+example (blocks$\times$dims) & method & $\theta$ ED & mean covered & sd covered & sd of fixed rates & model runs & surrogate evals & minutes \\
+\midrule
+linear bayes (24$\times$2) & Iterated, MLP & 0.027 & -- & -- & -- & 7.7e+07 & -- & 25.8 \\
+ & Iterated, MLP + Bayesian bootstrap & 0.018 & 15/15 & 4/15 & -- & 1.5e+09 & -- & 525.3 \\
+ & Bayes, Gaussian mixed effects & 0.001 & 15/15 & 15/15 & -- & 1.2e+09 & -- & 12.1 \\
+ & Bayes, DP mixture & 0.001 & 15/15 & 15/15 & -- & 1.2e+09 & -- & 15.4 \\
+ & Bayes, DP mixture, likelihood-free & 0.001 & 14/15 & 14/15 & -- & 1.4e+07 & 1.2e+09 & 100.7 \\ \addlinespace
+growth snapshot (12$\times$2) & Iterated, MLP & 0.290 & -- & -- & 0.34 & 3.8e+07 & -- & 7.9 \\
+ & Iterated, MLP + Bayesian bootstrap & 0.293 & 18/21 & 4/12 & 0.47 & 7.7e+08 & -- & 358.1 \\
+ & Bayes, Gaussian mixed effects & 0.123 & 18/21 & 5/12 & 0.23 & 6.0e+08 & -- & 3.4 \\
+ & Bayes, DP mixture & 0.367 & 9/21 & 4/12 & 0.41 & 6.1e+08 & -- & 7.5 \\
+ & Bayes, DP mixture, likelihood-free & 1.527 & 5/21 & 0/12 & 0.76 & 7.2e+06 & 5.6e+08 & 124.6 \\ \addlinespace
+growth tracked (2$\times$12) & Iterated, MLP & 0.251 & -- & -- & 0.28 & 1.9e+07 & -- & 5.3 \\
+ & Iterated, MLP + Bayesian bootstrap & 0.298 & 18/21 & 6/12 & 0.54 & 3.9e+08 & -- & 221.6 \\
+ & Bayes, Gaussian mixed effects & 0.091 & 21/21 & 6/12 & 0.22 & 1.0e+08 & -- & 1.1 \\
+ & Bayes, DP mixture & 0.094 & 21/21 & 6/12 & 0.23 & 1.0e+08 & -- & 2.0 \\
+ & Bayes, DP mixture, likelihood-free & 1.489 & 1/7 & 2/4 & 0.33 & 6.0e+06 & 9.9e+07 & 37.9 \\
+\bottomrule
+\end{tabular}

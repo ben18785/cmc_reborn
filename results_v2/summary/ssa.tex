@@ -1,0 +1,17 @@
+\begin{tabular}{llrrrrrrr}
+\toprule
+example (blocks$\times$dims) & method & $\theta$ ED & mean covered & sd covered & sd of fixed rates & model runs & surrogate evals & minutes \\
+\midrule
+bd ssa (8$\times$2) & Iterated, MLP & 0.013 & -- & -- & -- & 3.1e+07 & -- & 34.9 \\
+ & Iterated, MLP + Bayesian bootstrap & 0.004 & 12/12 & 8/12 & -- & 2.5e+08 & -- & 534.9 \\
+ & Bayes, Gaussian mixed effects & 0.002 & 12/12 & 9/12 & -- & 4.1e+08 & -- & 2.7 \\
+ & Bayes, Gaussian mixed effects, likelihood-free & 0.074 & 6/12 & 0/12 & -- & 4.8e+06 & 3.8e+08 & 85.8 \\ \addlinespace
+feedback ssa (6$\times$2) & Iterated, MLP & 0.828 & -- & -- & 0.44 & 2.3e+07 & -- & 19.2 \\
+ & Iterated, MLP + Bayesian bootstrap & 0.819 & 0/18 & 0/6 & 0.47 & 1.8e+08 & -- & 267.3 \\
+ & Bayes, Gaussian mixed effects, likelihood-free & 0.688 & 4/18 & 0/6 & 0.45 & 3.6e+06 & 2.7e+08 & 33.0 \\ \addlinespace
+bd ssa tracked (1$\times$16) & Iterated, MLP & 0.010 & -- & -- & -- & 9.0e+06 & -- & 36.2 \\
+ & Bayes, Gaussian mixed effects, likelihood-free & 0.002 & 11/12 & 9/12 & -- & 3.0e+06 & 5.1e+07 & 23.2 \\ \addlinespace
+feedback ssa tracked (1$\times$12) & Iterated, MLP & 0.261 & -- & -- & 0.38 & 6.7e+06 & -- & 23.5 \\
+ & Bayes, Gaussian mixed effects, likelihood-free & 0.209 & 10/18 & 2/6 & 0.42 & 3.0e+06 & 4.8e+07 & 75.1 \\
+\bottomrule
+\end{tabular}

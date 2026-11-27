@@ -1,0 +1,14 @@
+\begin{tabular}{llrrrr}
+\toprule
+example (dims) & method & $\theta$ ED & fit ED/floor & held-out ED/floor & sd ratio \\
+\midrule
+scalar (1) & Iterated, logistic & 0.001 & 0.83 & -- & 1.01 \\
+ & Iterated, MLP & 0.004 & 3.05 & -- & 0.79 \\ \addlinespace
+linear (40) & Iterated, logistic & 0.001 & 1.24 & 1.24 & 0.99 \\
+ & Iterated, MLP & 0.019 & 7.14 & 8.05 & 0.69 \\ \addlinespace
+growth (20) & Iterated, logistic & 0.250 & 1.24 & 2.38 & 2.38 \\
+ & Iterated, MLP & 0.365 & 27.65 & 44.74 & 2.39 \\ \addlinespace
+gene (18) & Iterated, logistic & 0.034 & 1.77 & 1.88 & 1.40 \\
+ & Iterated, MLP & 0.017 & 14.35 & 24.29 & 0.97 \\
+\bottomrule
+\end{tabular}
