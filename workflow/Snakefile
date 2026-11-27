@@ -52,7 +52,7 @@ rule data:
 # external methods (competitors) run with their own code, often in their own environment, and write
 # population draws (npz) or a Gaussian population (json) that `fit` scores like every other method
 EXTERNAL = {m: C["methods"][m].get("tool", "arruda") for m in C["methods"] if C["methods"][m]["kind"] == "external"}
-EXT_SUFFIX = {"arruda": "npz", "sourcerer": "npz", "nlmixr2": "json"}
+EXT_SUFFIX = {"arruda": "npz", "sourcerer": "npz", "neb": "npz", "npmle": "npz", "nlmixr2": "json"}
 ARRUDA_REPO = config.get("arruda_repo", "external/Amortized-NLME-Models")
 ARRUDA_COMMIT = "592c8912300c68ab241160eb3e739a2651209a03"
 SOURCERER_REPO = config.get("sourcerer_repo", "external/sourcerer")
@@ -128,6 +128,35 @@ rule sourcerer:
     shell:
         "PYTHONPATH=. python workflow/scripts/fit_sourcerer.py --example {wildcards.example} --method {wildcards.method} "
         "--seed {wildcards.seed} --config {params.cfg} --data {input.data} --repo {input.repo} --out {output}"
+
+
+rule neb:
+    input:
+        repo=SOURCERER_REPO,
+        data=RES + "/data/{example}_seed{seed}.npz",
+        code=CODE + ["workflow/scripts/fit_neb.py"],
+    output:
+        RES + "/external/neb/{example}/{method}_seed{seed}.npz",
+    params:
+        cfg=CFG,
+    conda:
+        "envs/sourcerer.yaml"
+    shell:
+        "PYTHONPATH=. python workflow/scripts/fit_neb.py --example {wildcards.example} --method {wildcards.method} "
+        "--seed {wildcards.seed} --config {params.cfg} --data {input.data} --repo {input.repo} --out {output}"
+
+
+rule npmle:
+    input:
+        data=RES + "/data/{example}_seed{seed}.npz",
+        code=CODE + ["cmc/npmle.py", "workflow/scripts/fit_npmle.py"],
+    output:
+        RES + "/external/npmle/{example}/{method}_seed{seed}.npz",
+    params:
+        cfg=CFG,
+    shell:
+        "PYTHONPATH=. python workflow/scripts/fit_npmle.py --example {wildcards.example} --method {wildcards.method} "
+        "--seed {wildcards.seed} --config {params.cfg} --data {input.data} --out {output}"
 
 
 rule nlme_csv:
