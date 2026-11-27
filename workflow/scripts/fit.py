@@ -73,7 +73,7 @@ def _boot_one(args):
 
 
 common = dict(n_reps=st["n_reps"], n_fit=st["n_fit"], ess_frac=st["ess_frac"], shrink=st["shrink"],
-              clip=st["clip"], step=st["step"], rejuv=st.get("rejuv", "ess"), threads=st["threads"], seed=a.seed)
+              clip=st["clip"], step=st["step"], rejuv=st.get("rejuv", "ess"), step_frac=st.get("step_frac", 1.0), threads=st["threads"], seed=a.seed)
 if meth["kind"] == "one_step":
     s = Settings(ratio="vine", n_particles=st["one_step_particles"], n_sweeps=1,
                  noise=meth["noise"], **common)

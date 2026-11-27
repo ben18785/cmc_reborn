@@ -44,6 +44,7 @@ class Settings:
     shrink: float = 0.95  # Liu-West a
     clip: float = 8.0  # |log r| cap per update
     step: float = 1.0  # exponent on the multiplier: < 1 damps, > 1 over-relaxes (accelerated EM)
+    step_frac: float = 1.0  # use `step` for this fraction of the sweeps, then plain EM (step 1)
     rejuv: str = "ess"  # "ess": resample-move when ESS < ess_frac * N; "always": after every update
     noise: bool = True
     seed: int = 0
@@ -106,6 +107,7 @@ def iterate_blocks(model, data, fit_blocks, s: Settings, callback=None, data_wei
     n_rejuv = 0
     t0 = time.time()
     for sweep in range(s.n_sweeps):
+        step = s.step if sweep < s.step_frac * s.n_sweeps else 1.0
         for j in rng.permutation(fit_blocks):
             cols = model.blocks[j]
             est = targets.get(j)
@@ -125,7 +127,7 @@ def iterate_blocks(model, data, fit_blocks, s: Settings, callback=None, data_wei
                 n_solves += len(idx) + len(lat_rep)
             lr = np.clip(est.log_ratio(q_eval), -s.clip, s.clip).reshape(N, reps)
             mult = logsumexp(lr, axis=1) - np.log(reps)
-            logw = normalise(logw + s.step * mult)
+            logw = normalise(logw + step * mult)
             if s.rejuv == "always" or ess(logw) < s.ess_frac * N:
                 theta = rejuvenate(model, theta, logw, s.shrink, rng)
                 lat = model.latent(theta)

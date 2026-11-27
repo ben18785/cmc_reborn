@@ -1,0 +1,243 @@
+# Ablation 2: v2 sampler settings (step 2, resample every update) vs step 1, v1-like (ESS-triggered, step 1) and step 2 for the first half of the sweeps.
+results: results_ablate2
+seeds:
+- 1
+- 2
+- 3
+examples:
+  fish_sim:
+    kind: fish
+    experiment: fish
+    model: {}
+    n_cells: 95
+    holdout: []
+    n_sweeps: 40
+    methods:
+    - iter_bins
+    - iter_bins_s1
+    - iter_bins_ess_s1
+    - iter_bins_half
+  tf_sim:
+    kind: transfection
+    experiment: transfection
+    model: {}
+    n_cells: 2565
+    holdout: []
+    n_sweeps: 150
+    methods:
+    - iter_mlp
+    - iter_mlp_s1
+    - iter_mlp_ess_s1
+    - iter_mlp_half
+  bd_ssa_tracked:
+    kind: bd_ssa
+    experiment: ssa
+    model:
+      design: tracked
+    n_cells: 2000
+    holdout: []
+    n_sweeps: 160
+    settings:
+      n_particles: 20000
+      n_fit: 16000
+      n_reps: 2
+    methods:
+    - iter_mlp
+    - iter_mlp_s1
+    - iter_mlp_ess_s1
+    - iter_mlp_half
+    - iter_logistic
+    - iter_logistic_s1
+  feedback_ssa:
+    kind: feedback_ssa
+    experiment: ssa
+    model:
+      design: snapshot
+    n_cells: 2000
+    holdout: []
+    n_sweeps: 40
+    settings:
+      n_particles: 40000
+      n_fit: 16000
+      n_reps: 2
+    methods:
+    - iter_mlp
+    - iter_mlp_s1
+    - iter_mlp_ess_s1
+    - iter_mlp_half
+  linear:
+    model:
+      p: 5
+      n_blocks: 24
+      d: 2
+      sigma: 0.5
+    n_cells: 2000
+    holdout:
+    - 5
+    - 11
+    - 17
+    - 23
+    n_sweeps: 40
+    methods:
+    - iter_mlp
+    - iter_mlp_s1
+    - iter_mlp_ess_s1
+    - iter_mlp_half
+  gene_n8000:
+    kind: gene
+    experiment: robustness
+    model:
+      capture: 0.3
+    n_cells: 8000
+    holdout: []
+    n_sweeps: 40
+    methods:
+    - iter_mlp
+    - iter_mlp_s1
+    - iter_mlp_ess_s1
+    - iter_mlp_half
+  growth_snapshot:
+    kind: growth
+    model:
+      noise_sd: 0.1
+      design: snapshot
+    n_cells: 2000
+    holdout: []
+    n_sweeps: 40
+    methods:
+    - iter_mlp
+    - iter_mlp_s1
+    - iter_mlp_ess_s1
+    - iter_mlp_half
+methods:
+  iter_logistic:
+    kind: iterate
+    ratio: logistic2
+  iter_mlp:
+    kind: iterate
+    ratio: mlp
+  iter_bins:
+    kind: iterate
+    ratio: logistic_bins
+  bayes_gauss:
+    kind: bayes
+    lik: exact
+    n_comp: 1
+  bayes_dpm:
+    kind: bayes
+    lik: exact
+    n_comp: 10
+    alpha: 1.0
+  bb_mlp:
+    kind: bootstrap
+    ratio: mlp
+    n_boot: 20
+  bb_mlp_ssa:
+    kind: bootstrap
+    ratio: mlp
+    n_boot: 8
+  bb_bins:
+    kind: bootstrap
+    ratio: logistic_bins
+    n_boot: 20
+  bayes_gauss_nre_big:
+    kind: bayes
+    lik: nre
+    n_comp: 1
+    bayes:
+      nre_train: 200000
+  bayes_dpm_nre_big:
+    kind: bayes
+    lik: nre
+    n_comp: 10
+    alpha: 1.0
+    bayes:
+      nre_train: 200000
+  bayes_gauss_nre_big1:
+    kind: bayes
+    lik: nre
+    n_comp: 1
+    bayes:
+      nre_train: 1000000
+  bayes_dpm_nre_big1:
+    kind: bayes
+    lik: nre
+    n_comp: 10
+    alpha: 1.0
+    bayes:
+      nre_train: 1000000
+  iter_mlp_s1:
+    kind: iterate
+    ratio: mlp
+    settings:
+      step: 1.0
+  iter_mlp_ess_s1:
+    kind: iterate
+    ratio: mlp
+    settings:
+      step: 1.0
+      rejuv: ess
+  iter_mlp_half:
+    kind: iterate
+    ratio: mlp
+    settings:
+      step_frac: 0.5
+  iter_bins_s1:
+    kind: iterate
+    ratio: logistic_bins
+    settings:
+      step: 1.0
+  iter_bins_ess_s1:
+    kind: iterate
+    ratio: logistic_bins
+    settings:
+      step: 1.0
+      rejuv: ess
+  iter_bins_half:
+    kind: iterate
+    ratio: logistic_bins
+    settings:
+      step_frac: 0.5
+  iter_logistic_s1:
+    kind: iterate
+    ratio: logistic2
+    settings:
+      step: 1.0
+  iter_logistic_ess_s1:
+    kind: iterate
+    ratio: logistic2
+    settings:
+      step: 1.0
+      rejuv: ess
+  iter_logistic_half:
+    kind: iterate
+    ratio: logistic2
+    settings:
+      step_frac: 0.5
+bayes:
+  n_burn: 3000
+  n_keep: 2000
+  thin: 10
+  n_pop: 1000
+  sigma_scale: 0.25
+  nu_extra: 3.0
+  n_init: 500
+  nre_train: 40000
+  nre_rounds: 3
+  nre_hidden:
+  - 128
+  - 128
+settings:
+  n_particles: 80000
+  n_reps: 4
+  n_fit: 32000
+  ess_frac: 0.5
+  shrink: 0.95
+  clip: 8.0
+  step: 2.0
+  threads: 2
+  one_step_particles: 50000
+  n_truth: 20000
+  n_pop: 1000
+  rejuv: always
+  boot_workers: 4
