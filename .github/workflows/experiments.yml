@@ -68,6 +68,22 @@ jobs:
       - name: CPU PyTorch for the Sourcerer baseline
         if: startsWith(matrix.method, 'sourcerer') || startsWith(matrix.method, 'neb')
         run: pip install -r requirements-sourcerer.txt
+      - name: BayesFlow 2 (torch backend) for the ML-NPE baseline
+        if: startsWith(matrix.method, 'mlnpe')
+        run: |
+          pip install -r requirements-mlnpe.txt
+          pip freeze > mlnpe-freeze.txt
+          echo "KERAS_BACKEND=torch" >> "$GITHUB_ENV"
+      - uses: mamba-org/setup-micromamba@v2  # Rust toolchain for the Pmetrics/PMcore baseline
+        if: startsWith(matrix.method, 'pmetrics')
+        with:
+          environment-file: workflow/envs/pmcore.yaml
+          cache-environment: true
+      - name: cargo of the pmcore environment
+        if: startsWith(matrix.method, 'pmetrics')
+        run: |
+          echo "PMCORE_CARGO=$MAMBA_ROOT_PREFIX/envs/pmcore/bin/cargo" >> "$GITHUB_ENV"
+          micromamba list -n pmcore > pmcore-freeze.txt
       - uses: mamba-org/setup-micromamba@v2  # R + nlmixr2 for the NLME software baseline
         if: startsWith(matrix.method, 'nlme')
         with:
@@ -84,7 +100,7 @@ jobs:
         run: |
           snakemake $RES/fits/${{ matrix.example }}/${{ matrix.method }}_seed${{ matrix.seed }}.json \
             --cores 2 --configfile ${{ inputs.config }} --config config_file=${{ inputs.config }} results=$RES \
-            arruda_python=${ARRUDA_PY:-python} nlmixr_rscript=${NLMIXR_RSCRIPT:-Rscript}
+            arruda_python=${ARRUDA_PY:-python} nlmixr_rscript=${NLMIXR_RSCRIPT:-Rscript} pmcore_cargo=${PMCORE_CARGO:-cargo}
       - uses: actions/upload-artifact@v4
         with:
           name: fit-${{ matrix.name }}
@@ -94,6 +110,9 @@ jobs:
             ${{ env.RES }}/external/*/${{ matrix.example }}/${{ matrix.method }}_seed${{ matrix.seed }}.*
             arruda-freeze.txt
             nlmixr2-freeze.txt
+            mlnpe-freeze.txt
+            pmcore-freeze.txt
+            workflow/scripts/pmcore_tf/Cargo.lock
   summarise:
     needs: fit
     if: always()

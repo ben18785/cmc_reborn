@@ -52,7 +52,7 @@ rule data:
 # external methods (competitors) run with their own code, often in their own environment, and write
 # population draws (npz) or a Gaussian population (json) that `fit` scores like every other method
 EXTERNAL = {m: C["methods"][m].get("tool", "arruda") for m in C["methods"] if C["methods"][m]["kind"] == "external"}
-EXT_SUFFIX = {"arruda": "npz", "sourcerer": "npz", "neb": "npz", "npmle": "npz", "nlmixr2": "json"}
+EXT_SUFFIX = {"arruda": "npz", "sourcerer": "npz", "neb": "npz", "npmle": "npz", "pmetrics": "npz", "mlnpe": "npz", "nlmixr2": "json"}
 ARRUDA_REPO = config.get("arruda_repo", "external/Amortized-NLME-Models")
 ARRUDA_COMMIT = "592c8912300c68ab241160eb3e739a2651209a03"
 SOURCERER_REPO = config.get("sourcerer_repo", "external/sourcerer")
@@ -156,6 +156,57 @@ rule npmle:
         cfg=CFG,
     shell:
         "PYTHONPATH=. python workflow/scripts/fit_npmle.py --example {wildcards.example} --method {wildcards.method} "
+        "--seed {wildcards.seed} --config {params.cfg} --data {input.data} --out {output}"
+
+
+PMCORE_DIR = "workflow/scripts/pmcore_tf"
+PMCORE_BIN = "external/pmcore_tf/release/pmcore_tf"
+
+
+rule pmcore_build:
+    input:
+        PMCORE_DIR + "/Cargo.toml",
+        PMCORE_DIR + "/src/main.rs",
+    output:
+        PMCORE_BIN,
+    params:
+        cargo=config.get("pmcore_cargo", "cargo"),
+    conda:
+        "envs/pmcore.yaml"
+    shell:
+        "{params.cargo} build --release --manifest-path " + PMCORE_DIR + "/Cargo.toml --target-dir external/pmcore_tf"
+
+
+rule pmetrics:
+    input:
+        binary=PMCORE_BIN,
+        data=RES + "/data/{example}_seed{seed}.npz",
+        code=CODE + ["workflow/scripts/fit_pmetrics.py"],
+    output:
+        RES + "/external/pmetrics/{example}/{method}_seed{seed}.npz",
+    params:
+        cfg=CFG,
+    threads: 2
+    conda:
+        ENV
+    shell:
+        "PYTHONPATH=. python workflow/scripts/fit_pmetrics.py --example {wildcards.example} --method {wildcards.method} "
+        "--seed {wildcards.seed} --config {params.cfg} --data {input.data} --binary {input.binary} "
+        "--threads {threads} --out {output}"
+
+
+rule mlnpe:
+    input:
+        data=RES + "/data/{example}_seed{seed}.npz",
+        code=CODE + ["workflow/scripts/fit_mlnpe.py"],
+    output:
+        RES + "/external/mlnpe/{example}/{method}_seed{seed}.npz",
+    params:
+        cfg=CFG,
+    conda:
+        "envs/mlnpe.yaml"
+    shell:
+        "PYTHONPATH=. python workflow/scripts/fit_mlnpe.py --example {wildcards.example} --method {wildcards.method} "
         "--seed {wildcards.seed} --config {params.cfg} --data {input.data} --out {output}"
 
 

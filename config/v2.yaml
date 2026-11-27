@@ -101,7 +101,7 @@ examples:
     holdout: []
     n_sweeps: 160
     settings: &id002 {n_particles: 20000, n_fit: 16000, n_reps: 2}
-    methods: [iter_mlp, bayes_gauss, bayes_gauss_nre_big1, sourcerer, neb, npmle, npmle_bb]
+    methods: [iter_mlp, bayes_gauss, bayes_gauss_nre_big1, sourcerer, neb, npmle, npmle_bb, mlnpe_ssa, mlnpe_smoke]
   feedback_ssa_tracked:
     kind: feedback_ssa
     experiment: ssa
@@ -143,7 +143,7 @@ examples:
     n_cells: 2565
     holdout: []
     n_sweeps: 150
-    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1, arruda, sourcerer, nlme_saem, nlme_focei, neb, npmle, npmle_bb]
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1, arruda, sourcerer, nlme_saem, nlme_focei, neb, npmle, npmle_bb, pmetrics_npag, mlnpe, pmetrics_smoke, mlnpe_smoke]
   tf_egfp:
     kind: transfection
     experiment: transfection
@@ -152,7 +152,7 @@ examples:
     n_cells: 2565
     holdout: []
     n_sweeps: 150
-    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1, arruda, sourcerer, nlme_saem, nlme_focei, neb, npmle, npmle_bb]
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1, arruda, sourcerer, nlme_saem, nlme_focei, neb, npmle, npmle_bb, pmetrics_npag, mlnpe]
   tf_d2egfp:
     kind: transfection
     experiment: transfection
@@ -161,7 +161,7 @@ examples:
     n_cells: 2923
     holdout: []
     n_sweeps: 150
-    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1, arruda, sourcerer, nlme_saem, nlme_focei, neb, npmle, npmle_bb]
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1, arruda, sourcerer, nlme_saem, nlme_focei, neb, npmle, npmle_bb, pmetrics_npag, mlnpe]
   tf_ssa_sim:
     kind: transfection_ssa
     experiment: transfection
@@ -170,7 +170,7 @@ examples:
     holdout: []
     n_sweeps: 100
     settings: *id002
-    methods: [iter_mlp, bayes_gauss_nre_big1, arruda, sourcerer, neb]
+    methods: [iter_mlp, bayes_gauss_nre_big1, arruda, sourcerer, neb, mlnpe_ssa]
   tf_ssa_egfp:
     kind: transfection_ssa
     experiment: transfection
@@ -180,7 +180,7 @@ examples:
     holdout: []
     n_sweeps: 100
     settings: *id002
-    methods: [iter_mlp, bayes_gauss_nre_big1, arruda, sourcerer, neb]
+    methods: [iter_mlp, bayes_gauss_nre_big1, arruda, sourcerer, neb, mlnpe_ssa]
 methods:
   sourcerer:               # Vetter et al. (2024): their code and default settings (workflow/scripts/fit_sourcerer.py)
     kind: external
@@ -191,6 +191,46 @@ methods:
     tool: neb
     n_train: 200000        # surrogate training simulations, as sourcerer
     minutes: 210           # total wall-clock budget (surrogate + source)
+  pmetrics_npag:           # NPAG (Neely et al. 2012; Yamada et al. 2021) in PMcore, the Rust engine of Pmetrics (workflow/scripts/fit_pmetrics.py)
+    kind: external
+    tool: pmetrics
+    algorithm: npag
+    points: 2028           # PMcore default Sobol start
+    minutes: 240           # wall-clock budget for the cycles (CI limit 350 min)
+  pmetrics_smoke:          # compile/data check only (not reported)
+    kind: external
+    tool: pmetrics
+    algorithm: npag
+    points: 2028
+    minutes: 10
+    max_cells: 200
+  mlnpe:                   # Habermann et al. (2025): ML-NPE, BayesFlow 2.1.0 (workflow/scripts/fit_mlnpe.py)
+    kind: external
+    tool: mlnpe
+    train_minutes: 240     # ODE examples (online training)
+    sim_minutes: 80        # Gillespie bank only
+    batch_size: 32
+    max_batch_cells: 65536
+    n_local: 64
+    n_keep: 50
+  mlnpe_ssa:               # the same for the Gillespie examples: 80 min simulation bank + 160 min training
+    kind: external
+    tool: mlnpe
+    train_minutes: 160
+    sim_minutes: 80
+    batch_size: 32
+    max_batch_cells: 65536
+    n_local: 64
+    n_keep: 50
+  mlnpe_smoke:             # API check only (not reported)
+    kind: external
+    tool: mlnpe
+    train_minutes: 3
+    sim_minutes: 2
+    batch_size: 4
+    max_batch_cells: 8192
+    n_local: 16
+    n_keep: 5
   npmle:                   # exact-likelihood NPMLE of the population on an adaptive grid (workflow/scripts/fit_npmle.py): the oracle for CMC's fixed point
     kind: external
     tool: npmle
