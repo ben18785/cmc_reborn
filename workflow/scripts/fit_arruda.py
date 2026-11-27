@@ -164,7 +164,8 @@ idx = np.linspace(0, len(trace) - 1, n_keep).astype(int)
 print("trace range per parameter:", np.round(np.nanmin(trace, 0), 3), np.round(np.nanmax(trace, 0), 3))
 pops, n_bad = [], 0
 for x in trace[idx]:
-    full = problem.get_full_vector(x) if len(x) < len(names) else x
+    # get_full_vector inserts NaN at fixed indices unless their values are given: use the optimum's
+    full = problem.get_full_vector(x, np.asarray(best)[problem.x_fixed_indices]) if len(x) < len(names) else x
     b, pi, _, _ = obj.get_params(np.asarray(full))
     with np.errstate(all="ignore"):
         C = np.linalg.inv(pi) if np.all(np.isfinite(pi)) else np.full_like(pi, np.nan)
