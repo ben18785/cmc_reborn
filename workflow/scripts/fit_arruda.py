@@ -161,16 +161,27 @@ burn = sample.geweke_test(res)
 trace = np.asarray(res.sample_result.trace_x[0])[int(burn or 0):]
 print("MCMC: burn-in", burn, "kept", len(trace))
 idx = np.linspace(0, len(trace) - 1, n_keep).astype(int)
-pops = []
+print("trace range per parameter:", np.round(np.nanmin(trace, 0), 3), np.round(np.nanmax(trace, 0), 3))
+pops, n_bad = [], 0
 for x in trace[idx]:
     full = problem.get_full_vector(x) if len(x) < len(names) else x
     b, pi, _, _ = obj.get_params(np.asarray(full))
-    C = np.linalg.inv(pi)
-    pops.append(rng.multivariate_normal(b, C, size=n_pop))
+    with np.errstate(all="ignore"):
+        C = np.linalg.inv(pi) if np.all(np.isfinite(pi)) else np.full_like(pi, np.nan)
+    if not (np.all(np.isfinite(b)) and np.all(np.isfinite(C))):  # a draw with a non-finite covariance
+        n_bad += 1
+        continue
+    C = (C + C.T) / 2
+    pops.append(rng.multivariate_normal(b, C, size=n_pop, method="eigh"))
+print(f"{n_bad} of {len(idx)} kept MCMC draws had a non-finite population covariance and were skipped")
+mcmc_ok = len(pops) > 0
+if not mcmc_ok:  # report the optimisation estimate instead (flagged in the output)
+    pops = [rng.multivariate_normal(beta_hat, psi_hat, size=n_pop, method="eigh")]
 seconds = time.time() - t0
 np.savez_compressed(a.out, pop_draws=np.array(pops, np.float32), seconds=seconds, t_opt=t_opt,
                     n_train_sims=-1 if n_train_sims is None else n_train_sims,
                     beta_hat=beta_hat, psi_hat=psi_hat, n_cells=len(obs), n_times=obs.shape[1],
                     burn_in=-1 if burn is None else int(burn), network=model.network_name, n_mcmc=n_mcmc,
-                    n_mcmc_requested=n_mcmc_req, ms_per_eval=per_eval * 1e3)
+                    n_mcmc_requested=n_mcmc_req, ms_per_eval=per_eval * 1e3, mcmc_ok=mcmc_ok,
+                    mcmc_bad_draws=n_bad)
 print("done", round(seconds / 60, 1), "min")
