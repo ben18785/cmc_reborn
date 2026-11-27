@@ -14,13 +14,15 @@ suppressPackageStartupMessages({library(nlmixr2); library(jsonlite)})
 args <- commandArgs(TRUE)
 d <- read.csv(args[1]); est <- args[2]; seed <- as.integer(args[3]); out <- args[4]
 set.seed(seed)
-# nlmixr2est 5.0.2 (inner.cpp, foceiSetupEta_) sizes a work buffer with a term n_records^2 computed in 32-bit
-# integers, which overflows above 46340 observation records (d2eGFP, 2923 cells x 30 times, then asks for
-# 31 GB; at 2565 cells the size wraps to a smaller, wrong buffer). Every nlmixr2 fit therefore uses a random
-# subset of cells with at most 46000 records (1533 cells at 30 times); the number used is recorded.
+# nlmixr2est 5.0.2 (inner.cpp, foceiSetupEta_) allocates a FOCEi work buffer that includes n_records^2
+# doubles (also used by SAEM, for its likelihood), with the size computed in 32-bit integers. With all cells
+# (77k-88k records) the size overflows (d2eGFP asks for 31 GB; at 2565 cells it wraps to a smaller, wrong
+# size); below the overflow it is still quadratic (1533 cells: 17 GB, more than a 16 GB runner). Every
+# nlmixr2 fit therefore uses a random subset of cells with at most 21000 records (700 cells at 30 times,
+# about 3.5 GB for that term); the number used is recorded.
 n_all_cells <- length(unique(d$ID))
 per_cell <- max(table(d$ID[d$EVID == 0]))
-max_cells <- floor(46000 / per_cell)
+max_cells <- floor(21000 / per_cell)
 if (n_all_cells > max_cells) {
   keep <- sort(sample(unique(d$ID), max_cells))
   d <- d[d$ID %in% keep, ]
