@@ -1,0 +1,154 @@
+# Ablation 3: does resampling after every update Gaussianise the population? Liu-West shrink 0.99 (smaller jitter) vs 0.95, plain EM.
+results: results_ablate3
+seeds:
+- 1
+- 2
+- 3
+examples:
+  fish_sim:
+    kind: fish
+    experiment: fish
+    model: {}
+    n_cells: 95
+    holdout: []
+    n_sweeps: 40
+    methods:
+    - bins_ess_s1
+    - bins_always_s1_a99
+    - bins_ess_s1_a99
+  growth_snapshot:
+    kind: growth
+    model:
+      noise_sd: 0.1
+      design: snapshot
+    n_cells: 2000
+    holdout: []
+    n_sweeps: 40
+    methods:
+    - mlp_ess_s1
+    - mlp_always_s1_a99
+    - mlp_ess_s1_a99
+  feedback_ssa:
+    kind: feedback_ssa
+    experiment: ssa
+    model:
+      design: snapshot
+    n_cells: 2000
+    holdout: []
+    n_sweeps: 40
+    settings:
+      n_particles: 40000
+      n_fit: 16000
+      n_reps: 2
+    methods:
+    - mlp_ess_s1
+    - mlp_always_s1_a99
+    - mlp_ess_s1_a99
+  gene:
+    model:
+      capture: 0.3
+    n_cells: 2000
+    holdout:
+    - 3
+    - 6
+    n_sweeps: 40
+    methods:
+    - mlp_ess_s1
+    - mlp_always_s1_a99
+    - mlp_ess_s1_a99
+  gene_n8000:
+    kind: gene
+    experiment: robustness
+    model:
+      capture: 0.3
+    n_cells: 8000
+    holdout: []
+    n_sweeps: 40
+    methods:
+    - mlp_ess_s1
+    - mlp_always_s1_a99
+    - mlp_ess_s1_a99
+  bd_ssa_tracked:
+    kind: bd_ssa
+    experiment: ssa
+    model:
+      design: tracked
+    n_cells: 2000
+    holdout: []
+    n_sweeps: 160
+    settings:
+      n_particles: 20000
+      n_fit: 16000
+      n_reps: 2
+    methods:
+    - mlp_ess_s1
+    - mlp_always_s1_a99
+    - mlp_ess_s1_a99
+methods:
+  bins_ess_s1:
+    kind: iterate
+    ratio: logistic_bins
+    settings:
+      step: 1.0
+      rejuv: ess
+  bins_always_s1_a99:
+    kind: iterate
+    ratio: logistic_bins
+    settings:
+      step: 1.0
+      rejuv: always
+      shrink: 0.99
+  bins_ess_s1_a99:
+    kind: iterate
+    ratio: logistic_bins
+    settings:
+      step: 1.0
+      rejuv: ess
+      shrink: 0.99
+  mlp_ess_s1:
+    kind: iterate
+    ratio: mlp
+    settings:
+      step: 1.0
+      rejuv: ess
+  mlp_always_s1_a99:
+    kind: iterate
+    ratio: mlp
+    settings:
+      step: 1.0
+      rejuv: always
+      shrink: 0.99
+  mlp_ess_s1_a99:
+    kind: iterate
+    ratio: mlp
+    settings:
+      step: 1.0
+      rejuv: ess
+      shrink: 0.99
+bayes:
+  n_burn: 3000
+  n_keep: 2000
+  thin: 10
+  n_pop: 1000
+  sigma_scale: 0.25
+  nu_extra: 3.0
+  n_init: 500
+  nre_train: 40000
+  nre_rounds: 3
+  nre_hidden:
+  - 128
+  - 128
+settings:
+  n_particles: 80000
+  n_reps: 4
+  n_fit: 32000
+  ess_frac: 0.5
+  shrink: 0.95
+  clip: 8.0
+  step: 2.0
+  threads: 2
+  one_step_particles: 50000
+  n_truth: 20000
+  n_pop: 1000
+  rejuv: always
+  boot_workers: 4
