@@ -143,7 +143,7 @@ examples:
     n_cells: 2565
     holdout: []
     n_sweeps: 150
-    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1]
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1, arruda]
   tf_egfp:
     kind: transfection
     experiment: transfection
@@ -152,7 +152,7 @@ examples:
     n_cells: 2565
     holdout: []
     n_sweeps: 150
-    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1]
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1, arruda]
   tf_d2egfp:
     kind: transfection
     experiment: transfection
@@ -161,7 +161,7 @@ examples:
     n_cells: 2923
     holdout: []
     n_sweeps: 150
-    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1]
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1, arruda]
   tf_ssa_sim:
     kind: transfection_ssa
     experiment: transfection
@@ -182,6 +182,13 @@ examples:
     settings: *id002
     methods: [iter_mlp, bayes_gauss_nre_big1]
 methods:
+  arruda:                  # Arruda et al. (2024): their code and pretrained network (workflow/scripts/fit_arruda.py)
+    kind: external
+    n_multi_starts: 10
+    n_samples_opt: 100
+    n_mcmc: 10000
+    n_keep: 50
+    workers: 2
   iter_logistic: {kind: iterate, ratio: logistic2}
   iter_mlp: {kind: iterate, ratio: mlp}
   iter_bins: {kind: iterate, ratio: logistic_bins}

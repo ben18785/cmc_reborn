@@ -49,21 +49,54 @@ rule data:
         "--seed {wildcards.seed} --config {params.cfg} --out {output}"
 
 
+# external methods run in their own environment and write population draws that `fit` scores
+EXTERNAL = {m for m in C["methods"] if C["methods"][m]["kind"] == "external"}
+ARRUDA_REPO = config.get("arruda_repo", "external/Amortized-NLME-Models")
+ARRUDA_COMMIT = "592c8912300c68ab241160eb3e739a2651209a03"
+
+
+rule arruda_repo:
+    output:
+        directory(ARRUDA_REPO),
+    shell:
+        "git clone -q https://github.com/arrjon/Amortized-NLME-Models {output} && "
+        "git -C {output} checkout -q " + ARRUDA_COMMIT
+
+
+rule arruda:
+    input:
+        repo=ARRUDA_REPO,
+        code="workflow/scripts/fit_arruda.py",
+        real=lambda w: C["examples"][w.example].get("data_tracks", []),
+    output:
+        RES + "/external/{example}/{method}_seed{seed}.npz",
+    params:
+        cfg=CFG,
+        py=config.get("arruda_python", "python"),
+    conda:
+        "envs/arruda.yaml"
+    shell:
+        "{params.py} workflow/scripts/fit_arruda.py --example {wildcards.example} --method {wildcards.method} "
+        "--seed {wildcards.seed} --config {params.cfg} --repo {input.repo} --out {output}"
+
+
 rule fit:
     input:
         data=RES + "/data/{example}_seed{seed}.npz",
         code=CODE + ["workflow/scripts/fit.py"],
+        external=lambda w: [RES + f"/external/{w.example}/{w.method}_seed{w.seed}.npz"] if w.method in EXTERNAL else [],
     output:
         json=RES + "/fits/{example}/{method}_seed{seed}.json",
         npz=RES + "/fits/{example}/{method}_seed{seed}.npz",
     params:
         cfg=CFG,
+        ext=lambda w, input: f"--external {input.external}" if input.external else "",
     conda:
         ENV
     shell:
         "PYTHONPATH=. python workflow/scripts/fit.py --example {wildcards.example} "
         "--method {wildcards.method} --seed {wildcards.seed} --config {params.cfg} "
-        "--data {input.data} --out-json {output.json} --out-npz {output.npz}"
+        "--data {input.data} --out-json {output.json} --out-npz {output.npz} {params.ext}"
 
 
 rule summarise:

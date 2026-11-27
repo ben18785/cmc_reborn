@@ -24,6 +24,7 @@ ap.add_argument("--config", required=True)
 ap.add_argument("--data", required=True)
 ap.add_argument("--out-json", required=True)
 ap.add_argument("--out-npz", required=True)
+ap.add_argument("--external", default=None, help="npz from an external method (kind: external)")
 a = ap.parse_args()
 
 cfg = yaml.safe_load(open(a.config))
@@ -126,6 +127,17 @@ elif meth["kind"] == "bayes":
     res = dict(theta=pooled, logw=np.full(len(pooled), -np.log(len(pooled))), pop_draws=r_b["pop_draws"],
                history=r_b["history"] + [dict(seconds=r_b["seconds"], n_solves=r_b["n_solves"],
                                               n_solves_train=r_b["n_solves_train"])])
+elif meth["kind"] == "external":
+    # a method run elsewhere in its own environment (e.g. fit_arruda.py): score its population draws
+    zx = np.load(a.external)
+    s = Settings(ratio="external", n_sweeps=0)
+    pop_draws = zx["pop_draws"].astype(float)
+    pooled = pop_draws.reshape(-1, model.p)
+    res = dict(theta=pooled, logw=np.full(len(pooled), -np.log(len(pooled))), pop_draws=pop_draws,
+               history=[dict(seconds=float(zx["seconds"]), n_solves=0,
+                             n_solves_train=int(zx["n_train_sims"]), n_cells=int(zx["n_cells"]),
+                             n_times=int(zx["n_times"]), beta_hat=zx["beta_hat"].tolist(),
+                             psi_hat=zx["psi_hat"].tolist())])
 else:
     raise ValueError(meth["kind"])
 

@@ -49,6 +49,18 @@ jobs:
     name: ${{ matrix.name }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5  # Python 3.11 for the Arruda et al. baseline (TensorFlow 2.15)
+        if: startsWith(matrix.method, 'arruda')
+        id: py311
+        with:
+          python-version: "3.11"
+      - name: environment for the Arruda et al. baseline
+        if: startsWith(matrix.method, 'arruda')
+        run: |
+          ${{ steps.py311.outputs.python-path }} -m venv .venv-arruda
+          .venv-arruda/bin/pip install -q -r requirements-arruda.txt
+          .venv-arruda/bin/pip freeze > arruda-freeze.txt
+          echo "ARRUDA_PY=$PWD/.venv-arruda/bin/python" >> "$GITHUB_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -58,13 +70,16 @@ jobs:
       - name: fit
         run: |
           snakemake $RES/fits/${{ matrix.example }}/${{ matrix.method }}_seed${{ matrix.seed }}.json \
-            --cores 2 --configfile ${{ inputs.config }} --config config_file=${{ inputs.config }} results=$RES
+            --cores 2 --configfile ${{ inputs.config }} --config config_file=${{ inputs.config }} results=$RES \
+            arruda_python=${ARRUDA_PY:-python}
       - uses: actions/upload-artifact@v4
         with:
           name: fit-${{ matrix.name }}
           path: |
             ${{ env.RES }}/fits/${{ matrix.example }}/${{ matrix.method }}_seed${{ matrix.seed }}.*
             ${{ env.RES }}/data/${{ matrix.example }}_seed${{ matrix.seed }}.npz
+            ${{ env.RES }}/external/${{ matrix.example }}/${{ matrix.method }}_seed${{ matrix.seed }}.npz
+            arruda-freeze.txt
   summarise:
     needs: fit
     if: always()

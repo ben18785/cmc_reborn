@@ -1,0 +1,9 @@
+# Pinned environment for the Arruda et al. (2024) baseline (rule `arruda`), matching their
+# requirements.txt where it pins versions. Keep in sync with requirements-arruda.txt (GitHub Actions).
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - -r ../../requirements-arruda.txt

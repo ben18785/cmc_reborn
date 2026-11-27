@@ -63,6 +63,8 @@ LABEL.update({"bb_mlp": "Iterated, MLP + Bayesian bootstrap", "bb_mlp_ssa": "Ite
               "bayes_dpm_nre_big": "Bayes, DP mixture, likelihood-free",
               "bayes_dpm_nre_big1": "Bayes, DP mixture, likelihood-free"})
 COLOR.update({"bb_mlp": "#f4a582", "bb_mlp_ssa": "#f4a582"})
+LABEL["arruda"] = "Amortised NLME (Arruda et al.)"
+COLOR["arruda"] = "#1b7837"
 for k in ("bayes_gauss_nre_big", "bayes_gauss_nre_big1", "bayes_dpm_nre_big", "bayes_dpm_nre_big1"):
     COLOR[k] = "#4d4d4d"
 for k in list(cfg["methods"]):  # any method without a label falls back to its key
@@ -73,7 +75,7 @@ for k in list(cfg["methods"]):  # any method without a label falls back to its k
 def model_runs(r):
     """forward-model runs: simulations (CMC, NRE training) or exact likelihood evaluations"""
     f = r["final"]
-    if cfg["methods"][r["method"]].get("lik") == "nre":
+    if cfg["methods"][r["method"]].get("lik") == "nre" or cfg["methods"][r["method"]]["kind"] == "external":
         return f.get("n_solves_train") or 0
     return f.get("n_solves") or 0
 
@@ -521,7 +523,7 @@ if SSA_EX:
     bayes_summary(SSA_EX, SSA_M, "ssa")
 TF_EX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") == "transfection" and any(k[0] == e for k in by)]
 TF_M = [m for m in ["iter_logistic", "iter_mlp", "bb_logistic", "bb_logistic_ssa", "bb_mlp", "bayes_gauss", "bayes_gauss_nre",
-                     "bayes_gauss_nre_big1"]
+                     "bayes_gauss_nre_big1", "arruda"]
         if m in cfg["methods"]]
 if TF_EX:
     bayes_summary(TF_EX, TF_M, "transfection")
