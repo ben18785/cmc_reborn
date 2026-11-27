@@ -1,4 +1,5 @@
 # Pinned environment for the NLME software baseline (rule `nlmixr2`): R 4.4 with nlmixr2 5.0.0.
+# rxode2 compiles each model to C, so the environment carries its own compiler toolchain.
 name: nlmixr2
 channels:
   - conda-forge
@@ -8,3 +9,5 @@ dependencies:
   - r-nlmixr2est=5.0.2
   - r-rxode2=5.0.2
   - r-jsonlite=2.0.0
+  - compilers=1.9.0
+  - make=4.4.1
