@@ -207,8 +207,9 @@ methods:
     n_multi_starts: 10
     n_samples_opt: 100
     n_mcmc: 10000
+    mcmc_minutes: 120
     n_keep: 50
-    workers: 2
+    workers: 1
   iter_logistic: {kind: iterate, ratio: logistic2}
   iter_mlp: {kind: iterate, ratio: mlp}
   iter_bins: {kind: iterate, ratio: logistic_bins}

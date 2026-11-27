@@ -45,6 +45,7 @@ ap.add_argument("--repo", required=True)
 ap.add_argument("--out", required=True)
 ap.add_argument("--fine", default=None, help="synthetic twin on their grid (make_data_fine.py)")
 a = ap.parse_args()
+sys.stdout.reconfigure(line_buffering=True)  # progress reaches the job log even if the job is killed
 
 cfg = yaml.safe_load(open(a.config))
 ex = cfg["examples"][a.example]
@@ -54,7 +55,9 @@ n_post = int(meth.get("n_samples_opt", 100))
 n_mcmc = int(meth.get("n_mcmc", 10000))
 n_keep = int(meth.get("n_keep", 50))
 n_pop = int(cfg["settings"].get("n_pop", 200))
-workers = int(meth.get("workers", 2))
+# their multi-process pyPESTO engine forks after TensorFlow has started, which hung on the CI runners
+# (no start finished in 6 h), so the starts run one after another (their single-core engine)
+workers = int(meth.get("workers", 1))
 
 repo = os.path.abspath(a.repo)
 sys.path.insert(0, repo)
@@ -99,9 +102,9 @@ hist = sorted(f for f in os.listdir(net_dir) if f.startswith("history_"))
 n_train_sims = None
 if hist:
     h = pickle.load(open(os.path.join(net_dir, hist[-1]), "rb"))
-    tl = h.get("train_losses") if isinstance(h, dict) else None
-    if tl is not None:
-        n_train_sims = int(len(tl) * model.batch_size)  # one batch of fresh simulations per iteration
+    tl = h.get("_total_loss") if isinstance(h, dict) else None
+    if tl is not None:  # online training: one batch of fresh simulations per iteration
+        n_train_sims = int(len(tl) * model.batch_size)
 print("network", model.network_name, "training simulations", n_train_sims)
 
 t0 = time.time()
@@ -115,13 +118,16 @@ res, obj, problem = run_population_optimization(
     individual_model=model, data=obs, param_names=names, cov_type="diag",
     n_multi_starts=n_starts, n_samples_opt=n_post,
     x_fixed_indices=fixed_indices, x_fixed_vals=fixed_values,
-    pesto_multi_processes=workers, verbose=False)
+    pesto_multi_processes=workers, verbose=True)
 best = res.optimize_result.x[0]  # pyPESTO sorts the starts by objective value, best first
 beta_hat, psi_inv, _, _ = obj.get_params(best)
 psi_hat = np.linalg.inv(psi_inv)
 t_opt = time.time() - t0
 print("optimisation done", round(t_opt / 60, 1), "min; mean", np.round(beta_hat, 3),
       "var", np.round(np.diag(psi_hat), 4))
+point = rng.multivariate_normal(beta_hat, psi_hat, size=n_pop)[None]
+np.savez_compressed(os.path.splitext(a.out)[0] + "_point.npz", pop_draws=point.astype(np.float32), seconds=t_opt,
+                    beta_hat=beta_hat, psi_hat=psi_hat)  # kept if the sampler does not finish
 
 # their Bayesian version: priors on the population parameters, adaptive Metropolis
 inv_var_prior_mean = -np.log(model.prior_cov.diagonal())
@@ -140,6 +146,15 @@ bayes_problem = Problem(objective=AggregatedObjective([Objective(obj), prior]),
                         x_scales=problem.x_scales, x_fixed_indices=problem.x_fixed_indices,
                         x_fixed_vals=problem.x_fixed_vals, x_priors_defs=prior)
 x0 = problem.get_reduced_vector(best)
+# cap the chain so that it fits the time budget (the job limit is 350 min); the cap is recorded
+t1 = time.time()
+for _ in range(20):
+    bayes_problem.objective(x0)
+per_eval = (time.time() - t1) / 20
+budget = 60 * float(meth.get("mcmc_minutes", 120))
+n_mcmc_req = n_mcmc
+n_mcmc = int(min(n_mcmc, max(1000, budget / per_eval)))
+print(f"objective {per_eval * 1e3:.1f} ms per evaluation; running {n_mcmc} of {n_mcmc_req} MCMC steps")
 res = sample.sample(bayes_problem, n_samples=n_mcmc, sampler=sample.AdaptiveMetropolisSampler(),
                     result=res, x0=x0)
 burn = sample.geweke_test(res)
@@ -156,5 +171,6 @@ seconds = time.time() - t0
 np.savez_compressed(a.out, pop_draws=np.array(pops, np.float32), seconds=seconds, t_opt=t_opt,
                     n_train_sims=-1 if n_train_sims is None else n_train_sims,
                     beta_hat=beta_hat, psi_hat=psi_hat, n_cells=len(obs), n_times=obs.shape[1],
-                    burn_in=-1 if burn is None else int(burn), network=model.network_name)
+                    burn_in=-1 if burn is None else int(burn), network=model.network_name, n_mcmc=n_mcmc,
+                    n_mcmc_requested=n_mcmc_req, ms_per_eval=per_eval * 1e3)
 print("done", round(seconds / 60, 1), "min")
