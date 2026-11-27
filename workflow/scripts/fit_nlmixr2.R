@@ -4,13 +4,18 @@
 # log scale with a shared sd (as in Arruda et al., the error sd does not vary across cells).
 # The closed-form solution is written in the stable symmetric form used by cmc (lo = min(delta, gamma)).
 # Initial values: prior means of the other methods, with delta and gamma moved apart (-2, -4) because the
-# model is symmetric in them. Writes a JSON with the population mean and covariance of the 6 log
+# model is symmetric in them, except the offset, which a practitioner reads off the data: before expression
+# starts y = log(offset) + noise, so loff starts at the median of y at the first time point (from 0, FOCEI
+# stopped at its starting values with 'false convergence'). If FOCEI still reports false convergence it is
+# refitted from its estimates with the derivative-free outer optimiser nlmixr2 suggests (bobyqa). Writes a JSON with the population mean and covariance of the 6 log
 # parameters (log sigma has zero variance) and the sampling covariance of the means.
 #   Rscript fit_nlmixr2.R data.csv saem|focei seed out.json
 suppressPackageStartupMessages({library(nlmixr2); library(jsonlite)})
 args <- commandArgs(TRUE)
 d <- read.csv(args[1]); est <- args[2]; seed <- as.integer(args[3]); out <- args[4]
 set.seed(seed)
+loff0 <- median(d$DV[d$EVID == 0 & d$TIME == min(d$TIME[d$EVID == 0])])
+cat("initial loff", loff0, "\n")
 
 mod <- function() {
   ini({
@@ -46,7 +51,16 @@ mod <- function() {
 # the starting etas of cells whose data do not inform them.
 ctl <- if (est == "saem") saemControl(seed = seed, print = 0, handleUninformativeEtas = FALSE) else foceiControl(print = 0)
 t0 <- proc.time()[["elapsed"]]
-fit <- nlmixr2(mod, d, est = est, control = ctl)
+ui0 <- nlmixr2(mod)
+ui <- eval(bquote(ini(ui0, loff = .(loff0))))  # the value inlined: ini() evaluates its arguments lazily
+fit <- nlmixr2(ui, d, est = est, control = ctl)
+refit <- FALSE
+if (est == "focei" && grepl("false convergence", paste(fit$message, collapse = " "))) {
+  print(fit)
+  cat("FOCEI false convergence: refitting with outerOpt = 'bobyqa' from these estimates\n")
+  fit <- nlmixr2(fit, d, est = "focei", control = foceiControl(print = 0, outerOpt = "bobyqa"))
+  refit <- TRUE
+}
 secs <- proc.time()[["elapsed"]] - t0
 print(fit)
 
@@ -67,7 +81,7 @@ if (!is.null(fit$cov)) {
     mean_cov <- J %*% C %*% J; cov_ok <- TRUE
   }
 }
-write_json(list(mean = mean, pop_cov = pop_cov, mean_cov = mean_cov, cov_ok = cov_ok, seconds = secs,
+write_json(list(mean = mean, pop_cov = pop_cov, mean_cov = mean_cov, cov_ok = cov_ok, seconds = secs, refit_bobyqa = refit, loff_init = loff0,
                 objf = fit$objf, n_cells = length(unique(d$ID)), n_times = 30, est = est,
                 version = as.character(packageVersion("nlmixr2"))),
            out, digits = NA, auto_unbox = TRUE, matrix = "rowmajor")
