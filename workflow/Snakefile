@@ -157,6 +157,8 @@ rule nlmixr2:
     conda:
         "envs/nlmixr2.yaml"
     shell:
+        # rxode2 compiles the model with the environment's compiler, so its bin directory goes on PATH
+        'PATH="$(dirname $(command -v {params.rscript})):$PATH" '
         "{params.rscript} workflow/scripts/fit_nlmixr2.R {input.csv} {params.est} {wildcards.seed} {output}"
 
 
