@@ -40,7 +40,11 @@ mod <- function() {
   })
 }
 
-ctl <- if (est == "saem") saemControl(seed = seed, print = 0) else foceiControl(print = 0)
+# handleUninformativeEtas = FALSE: nlmixr2est 5.0.2's check for uninformative etas solves the model on
+# (cells x 3 x n_eta) eta settings against the whole data set, so its memory grows with the square of the
+# number of cells (about 150 GB for 2565 cells). All five etas here are identified; the check only resets
+# the starting etas of cells whose data do not inform them.
+ctl <- if (est == "saem") saemControl(seed = seed, print = 0, handleUninformativeEtas = FALSE) else foceiControl(print = 0)
 t0 <- proc.time()[["elapsed"]]
 fit <- nlmixr2(mod, d, est = est, control = ctl)
 secs <- proc.time()[["elapsed"]] - t0
