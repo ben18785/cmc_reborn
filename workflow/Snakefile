@@ -63,21 +63,38 @@ rule arruda_repo:
         "git -C {output} checkout -q " + ARRUDA_COMMIT
 
 
+rule data_fine:
+    input:
+        code=CODE + ["workflow/scripts/make_data_fine.py"],
+    output:
+        RES + "/data_fine/{example}_seed{seed}.npz",
+    params:
+        cfg=CFG,
+    conda:
+        ENV
+    shell:
+        "PYTHONPATH=. python workflow/scripts/make_data_fine.py --example {wildcards.example} "
+        "--seed {wildcards.seed} --config {params.cfg} --out {output}"
+
+
 rule arruda:
     input:
         repo=ARRUDA_REPO,
         code="workflow/scripts/fit_arruda.py",
         real=lambda w: C["examples"][w.example].get("data_tracks", []),
+        fine=lambda w: [] if "data_tracks" in C["examples"][w.example] or C["examples"][w.example].get("kind") != "transfection_ssa"
+        else [RES + f"/data_fine/{w.example}_seed{w.seed}.npz"],
     output:
         RES + "/external/{example}/{method}_seed{seed}.npz",
     params:
         cfg=CFG,
         py=config.get("arruda_python", "python"),
+        fine=lambda w, input: f"--fine {input.fine}" if input.fine else "",
     conda:
         "envs/arruda.yaml"
     shell:
         "{params.py} workflow/scripts/fit_arruda.py --example {wildcards.example} --method {wildcards.method} "
-        "--seed {wildcards.seed} --config {params.cfg} --repo {input.repo} --out {output}"
+        "--seed {wildcards.seed} --config {params.cfg} --repo {input.repo} --out {output} {params.fine}"
 
 
 rule fit:

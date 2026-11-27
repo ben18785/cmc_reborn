@@ -4,7 +4,11 @@ pretrained network, as in their notebook `Examples/Amortized NLME Inference.ipyn
 Runs in its own pinned environment (workflow/envs/arruda.yaml; TensorFlow + BayesFlow 1.1.4 +
 pyPESTO 0.4.1) against a clone of github.com/arrjon/Amortized-NLME-Models at a fixed commit.
 
-Model: their 'simple Fröhlich' model, which is our `transfection` model (same ODE, measurement,
+Model: for `transfection_ssa`, their SDE model (chemical Langevin; same 8 parameters, order and
+measurement as our Gillespie model) and its pretrained network. As published, their Euler-Maruyama
+solver calls np.random.seed(42) before drawing its increments, so every training simulation shares one
+Brownian path; we use the network as published. Otherwise their 'simple Fröhlich' model, which is our
+`transfection` model (same ODE, measurement,
 noise and normal prior). Their network was trained on 180 measurements per cell (every 10 min,
 1/6 h to 30 h) and its summary network sees only the sequence of values, not the times, so it is
 given the data on that grid:
@@ -39,6 +43,7 @@ ap.add_argument("--seed", type=int, required=True)
 ap.add_argument("--config", required=True)
 ap.add_argument("--repo", required=True)
 ap.add_argument("--out", required=True)
+ap.add_argument("--fine", default=None, help="synthetic twin on their grid (make_data_fine.py)")
 a = ap.parse_args()
 
 cfg = yaml.safe_load(open(a.config))
@@ -60,6 +65,9 @@ from pypesto.objective import AggregatedObjective, NegLogParameterPriors, Object
 from inference.helper_functions import create_fixed_params, create_mixed_effect_model_param_names  # noqa: E402
 from inference.inference_functions import run_population_optimization  # noqa: E402
 from models.froehlich_model_simple import FroehlichModelSimple, batch_simulator  # noqa: E402
+from models.froehlich_model_sde import FroehlichModelSDE  # noqa: E402
+
+SDE = ex.get("kind") == "transfection_ssa"  # their SDE model and network (same 8 parameters as ours)
 
 # population of the synthetic twin (cmc/models.py, Transfection: Arruda et al.'s 'true' population)
 POP_MEAN = np.array([-0.69364, -7.01357, 6.21662, -0.16357, 2.07944, -3.45388])
@@ -73,7 +81,10 @@ if "data_tracks" in ex:
     Y = np.array([[float(x) for x in r.split(",")[1:]] for r in rows[2:]])
     keep = t <= 30
     obs = np.log(Y[keep].T)[:, :, None].astype(np.float32)
+elif a.fine:  # twin simulated with our simulator (exact Gillespie for the stochastic model)
+    obs = np.load(a.fine)["obs"][:, :, None].astype(np.float32)
 else:
+    assert not SDE
     theta = POP_MEAN + np.sqrt(POP_VAR) * rng.standard_normal((ex["n_cells"], 6))
     obs = batch_simulator(theta, n_obs=180, with_noise=True)
 assert obs.shape[1] == 180, obs.shape
@@ -81,7 +92,7 @@ ok = np.all(np.isfinite(obs), axis=(1, 2))
 obs = obs[ok]
 print(f"{len(obs)} cells x {obs.shape[1]} time points ({(~ok).sum()} dropped as non-finite)")
 
-model = FroehlichModelSimple(load_best=True, prior_type="normal")
+model = (FroehlichModelSDE if SDE else FroehlichModelSimple)(load_best=True, prior_type="normal")
 net_dir = os.path.join(repo, "networks", model.network_name)
 model.build_trainer(net_dir)  # restores the latest checkpoint into model.amortizer
 hist = sorted(f for f in os.listdir(net_dir) if f.startswith("history_"))

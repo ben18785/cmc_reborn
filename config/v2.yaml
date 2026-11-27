@@ -101,7 +101,7 @@ examples:
     holdout: []
     n_sweeps: 160
     settings: &id002 {n_particles: 20000, n_fit: 16000, n_reps: 2}
-    methods: [iter_mlp, bayes_gauss_nre_big1]
+    methods: [iter_mlp, bayes_gauss_nre_big1, arruda]
   feedback_ssa_tracked:
     kind: feedback_ssa
     experiment: ssa
@@ -110,7 +110,7 @@ examples:
     holdout: []
     n_sweeps: 120
     settings: *id002
-    methods: [iter_mlp, bayes_gauss_nre_big1]
+    methods: [iter_mlp, bayes_gauss_nre_big1, arruda]
   fish_sim:
     kind: fish
     experiment: fish
@@ -170,7 +170,7 @@ examples:
     holdout: []
     n_sweeps: 100
     settings: *id002
-    methods: [iter_mlp, bayes_gauss_nre_big1]
+    methods: [iter_mlp, bayes_gauss_nre_big1, arruda]
   tf_ssa_egfp:
     kind: transfection_ssa
     experiment: transfection
@@ -180,7 +180,7 @@ examples:
     holdout: []
     n_sweeps: 100
     settings: *id002
-    methods: [iter_mlp, bayes_gauss_nre_big1]
+    methods: [iter_mlp, bayes_gauss_nre_big1, arruda]
 methods:
   arruda:                  # Arruda et al. (2024): their code and pretrained network (workflow/scripts/fit_arruda.py)
     kind: external
