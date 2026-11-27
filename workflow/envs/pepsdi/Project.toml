@@ -1,0 +1,27 @@
+# Julia environment for the PEPSDI baseline (Persson et al. 2022; workflow/scripts/fit_pepsdi.jl).
+# The packages PEPSDI's src/PEPSDI.jl loads, plus DynamicPPL pinned to the version in the
+# authors' notebook output. Resolved by CI against the General registry as of 2021-02-28
+# (commit 09e06dd261b24e047c2fb59afda566d16c4e8725) with Julia 1.5.2, as the authors used;
+# commit the Manifest.toml the first CI run uploads (pepsdi-Manifest.toml) next to this file
+# to fix every transitive version.
+[deps]
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+Bijectors = "76274a88-744f-5084-9051-94815aaf08c4"
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+DynamicPPL = "366bfd00-2699-11ea-058f-f148b4cae6d8"
+PDMats = "90014a1f-27ba-587c-ab20-58faa44d9150"
+Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
+ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
+ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+Suppressor = "fd094767-a336-5f1f-9728-57cf17d0bbfb"
+Turing = "fce5fe82-541a-59a6-adf8-730c64b5f9a0"
+
+[compat]
+DataFrames = "=0.22.5"
+DynamicPPL = "=0.10.7"
+Turing = "=0.15.10"
+julia = "=1.5.2"
