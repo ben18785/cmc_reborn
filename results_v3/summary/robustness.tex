@@ -1,0 +1,21 @@
+\begin{tabular}{llrrrrrr}
+\toprule
+setting & method & model runs & surrogate evals & $\theta$ ED at start & $\theta$ ED at end & mean covered & sd covered \\
+\midrule
+2000 cells/block & Iterated, MLP & 2.6e+07 & -- & -- & 0.010 & -- & -- \\
+2000 cells/block & Iterated, MLP + Bayesian bootstrap & 5.1e+08 & -- & -- & 0.008 & 0.94 & 0.00 \\
+2000 cells/block & Bayes, Gaussian mixed effects & 4.0e+08 & -- & -- & 0.008 & 1.00 & 0.50 \\
+2000 cells/block & Bayes, Gaussian mixed effects, likelihood-free & 4.8e+06 & 3.5e+08 & -- & 1.973 & 0.22 & 0.39 \\
+2000 cells/block & Sourcerer (Vetter et al.) & 2.0e+05 & -- & -- & 0.391 & -- & -- \\
+8000 cells/block & Iterated, MLP & 2.6e+07 & -- & -- & 0.032 & -- & -- \\
+8000 cells/block & Iterated, MLP + Bayesian bootstrap & 5.1e+08 & -- & -- & 0.029 & 0.78 & 0.44 \\
+8000 cells/block & Bayes, Gaussian mixed effects & 1.6e+09 & -- & -- & 0.008 & 0.94 & 0.39 \\
+8000 cells/block & Bayes, Gaussian mixed effects, likelihood-free & 4.8e+06 & 1.3e+09 & -- & 1.229 & 0.33 & 0.22 \\
+8000 cells/block & Sourcerer (Vetter et al.) & 2.0e+05 & -- & -- & 0.345 & -- & -- \\
+32000 cells/block & Iterated, MLP & 2.6e+07 & -- & -- & 0.039 & -- & -- \\
+32000 cells/block & Iterated, MLP + Bayesian bootstrap & 5.1e+08 & -- & -- & 0.041 & 0.78 & 0.06 \\
+32000 cells/block & Bayes, Gaussian mixed effects & 6.3e+09 & -- & -- & 0.009 & 1.00 & 0.28 \\
+32000 cells/block & Bayes, Gaussian mixed effects, likelihood-free & 4.8e+06 & 5.2e+09 & -- & 0.177 & 0.28 & 0.00 \\
+32000 cells/block & Sourcerer (Vetter et al.) & 2.0e+05 & -- & -- & 0.331 & -- & -- \\
+\bottomrule
+\end{tabular}

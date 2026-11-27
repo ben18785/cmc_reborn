@@ -1,0 +1,76 @@
+{
+ "example": "fish_real",
+ "method": "sourcerer",
+ "seed": 1,
+ "settings": {
+  "ratio": "external",
+  "n_particles": 20000,
+  "n_reps": 4,
+  "n_fit": 4000,
+  "n_sweeps": 0,
+  "ess_frac": 0.5,
+  "shrink": 0.95,
+  "clip": 8.0,
+  "step": 1.0,
+  "step_frac": 1.0,
+  "rejuv": "ess",
+  "noise": true,
+  "seed": 0,
+  "trunc_lvl": null,
+  "threads": 1
+ },
+ "param_names": [
+  "log_a",
+  "log_r"
+ ],
+ "n_out_fit": 7,
+ "n_blocks_fit": 7,
+ "history": [
+  {
+   "seconds": 2612.6588435173035,
+   "n_solves": 0,
+   "n_solves_train": 200000,
+   "n_cells": 668,
+   "n_times": 7,
+   "steps": 2758
+  }
+ ],
+ "final": {
+  "ed_fit": [
+   0.006045410306393495,
+   0.005269358452211659,
+   0.015294832119732815,
+   0.019690615851370552,
+   0.0022361825653141043,
+   0.017239943239896416,
+   0.01953986796908236
+  ],
+  "mean": [
+   2.809623906968617,
+   2.577673817519301
+  ],
+  "sd": [
+   2.0661169443816942,
+   0.9324550502713176
+  ],
+  "cov": [
+   [
+    4.268839227861149,
+    -0.27336490257269747
+   ],
+   [
+    -0.2733649025726974,
+    0.8694724207764853
+   ]
+  ],
+  "truth_mean": null,
+  "truth_sd": null,
+  "truth_cov": null,
+  "ess": 10000.000000000016,
+  "floor_fit": NaN,
+  "floor_holdout": null,
+  "seconds": 2612.6588435173035,
+  "n_solves": 0,
+  "n_solves_train": 200000
+ }
+}

@@ -194,7 +194,8 @@ if multi:
                     ax.plot([x["sweep"] for x in h], [x["ed_theta"] for x in h], color=COLOR[m], lw=1,
                             alpha=0.8, label=LABEL[m] if i == 0 else None)
         ax.set_yscale("log")
-        ax.set_title(f"{e} ({by[(e, METHODS[0])][0]['n_out_fit']} output dims)", fontsize=9)
+        r0 = next(by[(e, m)][0] for m in METHODS if by.get((e, m)))  # any fit of the example
+        ax.set_title(f"{e} ({r0['n_out_fit']} output dims)", fontsize=9)
         ax.set_xlabel("sweep")
     axes[0][0].set_ylabel("energy distance to true population")
     axes[0][-1].legend(fontsize=6, frameon=False)
@@ -464,14 +465,15 @@ def bayes_summary(BEX, BM, name):
             eds = [r["final"].get("ed_theta") for r in rs]
             lines.append(
                 f"{lab} & {LABEL[m]} & " + (f"{np.mean(eds):.3f}" if eds[0] is not None else "--") + " & "
+                + f"{np.mean([np.mean(r['final']['ed_fit']) for r in rs]):.3f} & "
                 + ("-- & -- & " if point or not n_m else f"{cov_m}/{n_m} & {cov_s}/{n_s} & ")
                 + (f"{np.mean(upper_fixed):.2f}" if upper_fixed else "--")
                 + f" & {fmt_e(np.mean([model_runs(r) for r in rs]))} & {fmt_e(np.mean([surrogate_evals(r) for r in rs]))}"
                 + f" & {np.mean([r['final']['seconds'] for r in rs]) / 60:.1f} \\\\"
                 + (" \\addlinespace" if m == ms_[-1] and e != BEX[-1] else ""))
     open(os.path.join(a.out, f"{name}.tex"), "w").write(
-        "\\begin{tabular}{llrrrrrrr}\n\\toprule\n"
-        "example (blocks$\\times$dims) & method & $\\theta$ ED & mean covered & sd covered & "
+        "\\begin{tabular}{llrrrrrrrr}\n\\toprule\n"
+        "example (blocks$\\times$dims) & method & $\\theta$ ED & data ED & mean covered & sd covered & "
         "sd of fixed rates & model runs & surrogate evals & minutes \\\\\n\\midrule\n" + "\n".join(lines) + "\n\\bottomrule\n\\end{tabular}\n")
 
     ncol = max(len(quantities(e)) for e in BEX)
