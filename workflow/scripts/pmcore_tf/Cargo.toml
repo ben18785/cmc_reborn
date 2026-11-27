@@ -1,0 +1,19 @@
+# Nonparametric population baseline (NPAG / NPOD) for the transfection ODE model: a small binary on
+# PMcore, the Rust engine of Pmetrics (LAPKB; GPL-3.0). Built by the Snakefile rule `pmcore_build`
+# (workflow/scripts/fit_pmetrics.py runs it). Direct dependencies are pinned exactly; the first CI build
+# writes Cargo.lock next to this file, which the CI job uploads with the fit (commit it to freeze the
+# transitive versions too, after which builds can use --locked).
+[package]
+name = "pmcore_tf"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+pmcore = "=0.29.0"
+pharmsol = "=0.29.4"   # the analytical! macro expands to ::pharmsol paths, so it is a direct dependency
+anyhow = "=1.0.104"
+serde_json = "=1.0.154"
+
+[profile.release]
+opt-level = 3
