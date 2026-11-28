@@ -756,6 +756,27 @@ if all(any((e, m) in by for m in TFR) for e, _ in TFC):
         "method & $\\theta$ ED & data ED & data ED & data ED & $\\theta$ ED & data ED & data ED \\\\\n\\midrule\n"
         + "\n".join(rows) + "\n\\bottomrule\n\\end{tabular}\n")
 
+# 1b. the same, data ED of each run (on real data the runs share the data and differ only in the
+# algorithm's random numbers, so the spread is run-to-run variability)
+TFS = ["tf_sim", "tf_egfp", "tf_d2egfp", "tf_ssa_sim", "tf_ssa_egfp"]
+if all(any((e, m) in by for m in TFR) for e in TFS):
+    rows = []
+    for m in TFR:
+        if m == "mlnpe_ssa" and "mlnpe" in TFR:
+            continue
+        cells = []
+        for e in TFS:
+            mm = "mlnpe_ssa" if m == "mlnpe" and e.startswith("tf_ssa") else m
+            rs = sorted(by.get((e, mm), []), key=lambda r: r["seed"])
+            cells.append(" / ".join(f"{np.mean(r['final']['ed_fit']):.3f}" for r in rs) if rs else "--")
+        rows.append(f"{LABEL[m]} & " + " & ".join(cells) + " \\\\")
+    open(os.path.join(a.out, "compare_tf_runs.tex"), "w").write(
+        "\\begin{tabular}{lccccc}\n\\toprule\n"
+        " & \\multicolumn{3}{c}{ODE model} & \\multicolumn{2}{c}{Gillespie model} \\\\\n"
+        "\\cmidrule(lr){2-4}\\cmidrule(lr){5-6}\n"
+        "method & twin & eGFP & d2eGFP & twin & eGFP \\\\\n\\midrule\n"
+        + "\n".join(rows) + "\n\\bottomrule\n\\end{tabular}\n")
+
 # 2. CMC against the exact-likelihood NPMLE (the population CMC targets) and exact Bayes
 NPX = [e for e in ["linear_bayes", "growth_snapshot", "growth_tracked", "gene_n2000", "gene_n8000", "gene_n32000",
                    "bd_ssa", "bd_ssa_tracked", "fish_sim", "tf_sim"] if (e, "npmle") in by]
