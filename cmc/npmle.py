@@ -40,40 +40,50 @@ class Observations:
         return out
 
 
-def solve_weights(logL, c, w0=None, gtol=1e-4, max_iter=20000):
+def solve_weights(logL, c, w0=None, gtol=1e-4, max_iter=20000, deadline=None):
     """Weights maximising sum_i c_i log sum_k w_k exp(logL_ik): EM (Laird 1978; Vardi et al. 1985)
     with SQUAREM acceleration (Varadhan & Roland 2008), stopped by the optimality condition of the
     NPMLE on the grid (Lindsay 1983): D_k = sum_i c_i L_ik / f_i / sum_i c_i <= 1 for all k, with
-    equality on the support; stop when max_k D_k <= 1 + gtol. Returns (w, log-likelihood, EM steps)."""
+    equality on the support; stop when max_k D_k <= 1 + gtol, after max_iter EM steps, or at the
+    wall-clock `deadline` (time.time()). Matrix-vector products stay in float32 (a float64 vector
+    would make numpy copy the whole matrix on every product).
+    Returns (w, log-likelihood, EM steps, max_k D_k)."""
+    import time
     m = logL.max(axis=1, keepdims=True).astype(float)
     m = np.where(np.isfinite(m), m, 0.0)
-    L = np.exp(logL - m.astype(np.float32))
+    L = np.exp(logL - m.astype(np.float32)).astype(np.float32, copy=False)
     w = np.full(L.shape[1], 1.0 / L.shape[1]) if w0 is None else np.asarray(w0, float) / np.sum(w0)
     cs = np.asarray(c, float) / np.sum(c)
 
-    def em(w):
-        return w * (L.T @ (cs / np.maximum(L @ w, 1e-300)))
+    def f(w):
+        return np.maximum(L @ w.astype(np.float32), 1e-30).astype(float)
 
-    def obj(w):
-        return float(cs @ np.log(np.maximum(L @ w, 1e-300)))
+    def grad(fw):
+        return (L.T @ (cs / fw).astype(np.float32)).astype(float)
 
-    it = 0
-    while it < max_iter:
-        D = L.T @ (cs / np.maximum(L @ w, 1e-300))
-        if D.max() <= 1 + gtol:
+    def obj(fw):
+        return float(cs @ np.log(fw))
+
+    it, fw = 0, f(w)
+    while True:
+        D = grad(fw)
+        if D.max() <= 1 + gtol or it >= max_iter or (deadline is not None and time.time() > deadline):
             break
         w1 = w * D
-        w2 = em(w1)
+        w2 = w1 * grad(f(w1))
+        f2 = f(w2)
         r, v = w1 - w, w2 - 2 * w1 + w
         alpha = -np.sqrt((r @ r) / max(v @ v, 1e-300))
-        wn = np.maximum(w - 2 * alpha * r + alpha * alpha * v, 0.0)
-        wn = em(wn / wn.sum()) if wn.sum() > 0 else w2
-        o2, on = obj(w2), obj(wn)
-        if on < o2:  # the extrapolation did not improve: plain EM step
-            wn, on = w2, o2
-        w, it = wn / wn.sum(), it + 3
-    ll = float(np.asarray(c, float) @ (np.log(np.maximum(L @ w, 1e-300)) + m[:, 0]))
-    return w, ll, it
+        # keep every weight positive (EM cannot revive an exact zero)
+        wn = np.maximum(w - 2 * alpha * r + alpha * alpha * v, 1e-3 * w2)
+        wn, fn = (w2, f2) if wn.sum() <= 0 else (wn / wn.sum(), None)
+        if fn is None:
+            fn = f(wn)
+            if obj(fn) < obj(f2):  # the extrapolation did not improve: plain EM steps
+                wn, fn = w2, f2
+        w, fw, it = wn / wn.sum(), fn, it + 2
+    ll = float(np.asarray(c, float) @ (np.log(fw) + m[:, 0]))
+    return w, ll, it, float(D.max())
 
 
 def npmle(obs, rng, n_grid=4000, n_new=3000, n_rounds=8, keep=1e-4, h0=0.2, minutes=None, log=print, **kw):
@@ -87,12 +97,14 @@ def npmle(obs, rng, n_grid=4000, n_new=3000, n_rounds=8, keep=1e-4, h0=0.2, minu
     theta = model.sample_prior(n_grid, rng)
     logL = obs.loglik_matrix(theta)
     n_lik = logL.size
-    w, ll, it = solve_weights(logL, obs.c, **kw)
-    hist = [dict(round=0, n_cand=len(theta), loglik=ll, em_steps=it)]
-    log(f"round 0: {len(theta)} candidates, log-lik {ll:.2f}, {it} EM steps")
+    deadline = None if minutes is None else t0 + 60 * minutes
+    w, ll, it, dmax = solve_weights(logL, obs.c, deadline=deadline, **kw)
+    hist = [dict(round=0, n_cand=len(theta), loglik=ll, em_steps=it, max_D=dmax)]
+    log(f"round 0: {len(theta)} candidates, log-lik {ll:.2f}, {it} EM steps, max D {dmax:.4f} "
+        f"({time.time() - t0:.0f} s)")
     h = h0
     for r in range(1, n_rounds + 1):
-        if minutes is not None and time.time() - t0 > 60 * minutes:
+        if deadline is not None and time.time() > deadline:
             log(f"time budget reached after {r - 1} refinement rounds")
             hist[-1]["stopped_early"] = True
             break
@@ -105,9 +117,11 @@ def npmle(obs, rng, n_grid=4000, n_new=3000, n_rounds=8, keep=1e-4, h0=0.2, minu
         lnew = obs.loglik_matrix(new)
         n_lik += lnew.size
         theta, logL = np.vstack([theta, new]), np.hstack([logL, lnew])
-        w, ll, it = solve_weights(logL, obs.c, np.r_[w, np.full(n_new, 1e-3 * w.min() + 1e-12)], **kw)
+        w, ll, it, dmax = solve_weights(logL, obs.c, np.r_[w, np.full(n_new, 1e-3 * w.min() + 1e-12)],
+                                        deadline=deadline, **kw)
         n_sup = int((w > keep * w.max()).sum())
-        hist.append(dict(round=r, n_cand=len(theta), loglik=ll, em_steps=it, h=h, n_support=n_sup))
-        log(f"round {r}: h {h:.4f}, {len(theta)} candidates, log-lik {ll:.2f}, {it} EM steps, support {n_sup}")
+        hist.append(dict(round=r, n_cand=len(theta), loglik=ll, em_steps=it, max_D=dmax, h=h, n_support=n_sup))
+        log(f"round {r}: h {h:.4f}, {len(theta)} candidates, log-lik {ll:.2f}, {it} EM steps, "
+            f"max D {dmax:.4f}, support {n_sup} ({time.time() - t0:.0f} s)")
         h /= 2
     return theta, w, logL, hist, n_lik

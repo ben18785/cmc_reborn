@@ -61,10 +61,12 @@ if n_boot:
     sup = w > 1e-6 * w.max()
     th_b, lL_b = theta[sup], logL[:, sup]
     row = np.repeat(np.arange(len(obs.c)), obs.c.astype(int))  # cell -> distinct observation
-    pops = []
-    for _ in range(n_boot):
+    pops, t_b = [], time.time()
+    boot_end = t_b + 60 * float(meth.get("boot_minutes", 60))
+    for b in range(n_boot):  # equal share of the remaining bootstrap budget per replicate
+        dl = time.time() + (boot_end - time.time()) / (n_boot - b)
         cb = np.bincount(row, weights=rng.exponential(size=n_cells), minlength=len(obs.c))
-        wb, _, _ = solve_weights(lL_b, cb, w[sup], **solver)
+        wb, _, _, _ = solve_weights(lL_b, cb, w[sup], deadline=dl, **solver)
         pops.append(th_b[rng.choice(len(th_b), size=n_pop, p=wb)])
 seconds = time.time() - t0
 np.savez_compressed(a.out, pop_draws=np.array(pops, np.float32), support=theta[w > 0], weights=w[w > 0],
@@ -72,5 +74,6 @@ np.savez_compressed(a.out, pop_draws=np.array(pops, np.float32), support=theta[w
                     n_lik_evals=n_lik, n_cells=n_cells,
                     n_times=int(sum(len(model.blocks[j]) for j in fit_blocks)),
                     steps=np.array([x["loglik"] for x in hist]),
-                    stopped_early=bool(hist[-1].get("stopped_early", False)))
+                    stopped_early=bool(hist[-1].get("stopped_early", False)),
+                    max_D=np.array([x["max_D"] for x in hist]))
 print("done", round(seconds / 60, 1), "min; final log-lik", round(hist[-1]["loglik"], 2))

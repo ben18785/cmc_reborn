@@ -273,6 +273,7 @@ methods:
     n_rounds: 8
     minutes: 200
     n_boot: 20
+    boot_minutes: 60
   nlme_saem:               # nlmixr2 (SAEM), the transfection ODE as a practitioner would fit it
     kind: external
     tool: nlmixr2

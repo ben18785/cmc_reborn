@@ -36,7 +36,7 @@ def test_solver_kkt_and_recovery():
     x = np.where(rng.uniform(size=n) < 0.3, -2.0, 2.0) + rng.standard_normal(n)
     grid = np.linspace(-5, 5, 201)
     logL = (-0.5 * (x[:, None] - grid[None]) ** 2).astype(np.float32)
-    w, ll, it = solve_weights(logL, np.ones(n), gtol=1e-4, max_iter=100000)
+    w, ll, it, dmax = solve_weights(logL, np.ones(n), gtol=1e-4, max_iter=100000)
     # Lindsay's gradient condition: D(theta) = mean_i L_i(theta) / f_i <= 1 everywhere, = 1 on the support
     L = np.exp(logL.astype(float))
     D = (L / (L @ w)[:, None]).mean(0)
