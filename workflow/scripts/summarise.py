@@ -54,7 +54,7 @@ def surrogate_evals(r):
 
 
 def fmt_e(x):
-    return f"{x:.1e}" if x else "--"
+    return f"{x:.1e}" if x and x > 0 else "--"  # -1: not applicable (exact likelihood)
 
 
 def pop_draws(e, m, sd_):
@@ -365,13 +365,15 @@ if TRACK:
 
 # ---- figure 8 + table: fully Bayesian hierarchical models vs iterated CMC
 # Each method stores S populations (posterior draws / bootstrap replicates; S = 1 for CMC). For every
+# competitor baselines, appended to every comparison table they have fits for
+BASELINES = ["npmle", "npmle_bb", "pmetrics_npag", "neb", "mlnpe", "mlnpe_sub", "mlnpe_ssa", "pepsdi"]
 # quantity we take the population mean and the population sd (cell-to-cell spread) in each of them.
 BM = [m for m in ["iter_logistic", "iter_mlp", "bb_logistic", "bb_mlp", "bayes_gauss", "bayes_dpm", "bayes_dpm_nre",
-                    "bayes_dpm_nre_big", "bayes_dpm_nre_big1", "sourcerer"] if m in cfg["methods"]]
+                    "bayes_dpm_nre_big", "bayes_dpm_nre_big1", "sourcerer"] + BASELINES if m in cfg["methods"]]
 BEX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") not in ("robustness", "ssa", "fish", "transfection", "transfection_truth")
        and any((e, m) in by for m in BM if cfg["methods"][m]["kind"] in ("bootstrap", "bayes"))]
 SSA_M = [m for m in ["iter_logistic", "iter_mlp", "bb_logistic_ssa", "bb_mlp_ssa", "bayes_gauss", "bayes_gauss_nre",
-                       "bayes_gauss_nre_big", "bayes_gauss_nre_big1", "sourcerer"] if m in cfg["methods"]]
+                       "bayes_gauss_nre_big", "bayes_gauss_nre_big1", "sourcerer"] + BASELINES if m in cfg["methods"]]
 SSA_EX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") == "ssa" and any(k[0] == e for k in by)]
 PRETTY = {"log_delta": "log $\\delta$", "log_gamma": "log $\\gamma$", "log_km0": "log $k m_0$",
           "log_t0": "log $t_0$", "log_offset": "log offset", "log_sigma": "log $\\sigma$", "log_k": "log $k$",
@@ -493,7 +495,7 @@ if SSA_EX:
     bayes_summary(SSA_EX, SSA_M, "ssa")
 TF_EX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") == "transfection" and any(k[0] == e for k in by)]
 TF_M = [m for m in ["iter_logistic", "iter_mlp", "bb_logistic", "bb_logistic_ssa", "bb_mlp", "bayes_gauss", "bayes_gauss_nre",
-                     "bayes_gauss_nre_big1", "arruda", "sourcerer", "nlme_saem", "nlme_focei"]
+                     "bayes_gauss_nre_big1", "arruda", "sourcerer", "nlme_saem", "nlme_focei"] + BASELINES
         if m in cfg["methods"]]
 if TF_EX:
     bayes_summary(TF_EX, TF_M, "transfection")
@@ -517,7 +519,7 @@ if ROB:
     NS = sorted([(cfg["examples"][e]["n_cells"], e) for e in ROB if e.startswith("gene_n")])
     T1 = [m for m in ["iter_logistic_truth", "bayes_gauss_truth", "bayes_gauss_nre_truth",
                       "bayes_gauss_nre_small_truth"] if ("gene_truth", m) in by]
-    T2 = [m for m in ["iter_logistic", "iter_mlp", "bb_logistic", "bb_mlp", "bayes_gauss", "bayes_gauss_nre", "bayes_gauss_nre_big", "sourcerer"] if any((e, m) in by for _, e in NS)]
+    T2 = [m for m in ["iter_logistic", "iter_mlp", "bb_logistic", "bb_mlp", "bayes_gauss", "bayes_gauss_nre", "bayes_gauss_nre_big", "sourcerer"] + BASELINES if any((e, m) in by for _, e in NS)]
     fig, axes = plt.subplots(1, 4, figsize=(12.5, 2.9))
     ax = axes[0]
     for m in T1:
@@ -597,7 +599,7 @@ if ROB:
 FEX = [e for e in cfg["examples"] if cfg["examples"][e].get("experiment") == "fish" and any(k[0] == e for k in by)]
 if FEX:
     VOR = np.log(5.0)  # log a above this: voracious (the two synthetic modes are at -2.2 and 5.7)
-    FM = [m for m in ["iter_logistic", "iter_bins", "iter_mlp", "bb_bins", "bayes_gauss", "bayes_dpm", "sourcerer"]
+    FM = [m for m in ["iter_logistic", "iter_bins", "iter_mlp", "bb_bins", "bayes_gauss", "bayes_dpm", "sourcerer"] + BASELINES
           if any((e, m) in by for e in FEX)]
     fmodel = make_model("fish")
 
@@ -718,4 +720,57 @@ if EX and PM:
     fig.savefig(os.path.join(a.out, "params.pdf"))
     fig.savefig(os.path.join(a.out, "params.png"), dpi=150)
     plt.close(fig)
+# ---- compact tables for the paper's comparison section (means over seeds; "--" where not run)
+def _mean(e, m, key):
+    rs = by.get((e, m), [])
+    if not rs:
+        return None
+    v = [r["final"].get("ed_theta") if key == "theta" else np.mean(r["final"]["ed_fit"]) for r in rs]
+    return None if any(x is None for x in v) else float(np.mean(v))
+
+
+def _f(x):
+    return "--" if x is None else (f"{x:.3f}" if x < 10 else f"{x:.1f}")
+
+
+# 1. transfection: every method that was run, ODE and Gillespie versions, twin and real data
+TFC = [("tf_sim", "theta"), ("tf_sim", "data"), ("tf_egfp", "data"), ("tf_d2egfp", "data"),
+       ("tf_ssa_sim", "theta"), ("tf_ssa_sim", "data"), ("tf_ssa_egfp", "data")]
+TFR = [m for m in ["iter_mlp", "bb_mlp", "bayes_gauss", "bayes_gauss_nre_big1", "arruda", "sourcerer", "nlme_saem",
+                   "nlme_focei", "npmle", "pmetrics_npag", "neb", "mlnpe", "mlnpe_sub", "mlnpe_ssa", "pepsdi"]
+       if m in cfg["methods"] and any((e, m) in by for e, _ in TFC)]
+if all(any((e, m) in by for m in TFR) for e, _ in TFC):
+    rows = []
+    for m in TFR:
+        # the two ML-NPE settings for ODE / Gillespie models share a row
+        if m == "mlnpe_ssa" and "mlnpe" in TFR:
+            continue
+        ms = {e: ("mlnpe_ssa" if m == "mlnpe" and e.startswith("tf_ssa") else m) for e, _ in TFC}
+        rows.append(f"{LABEL[m]} & " + " & ".join(_f(_mean(e, ms[e], k)) for e, k in TFC) + " \\\\")
+    open(os.path.join(a.out, "compare_tf.tex"), "w").write(
+        "\\begin{tabular}{lrrrrrrr}\n\\toprule\n"
+        " & \\multicolumn{4}{c}{ODE model} & \\multicolumn{3}{c}{Gillespie model} \\\\\n"
+        "\\cmidrule(lr){2-5}\\cmidrule(lr){6-8}\n"
+        " & \\multicolumn{2}{c}{twin} & eGFP & d2eGFP & \\multicolumn{2}{c}{twin} & eGFP \\\\\n"
+        "\\cmidrule(lr){2-3}\\cmidrule(lr){6-7}\n"
+        "method & $\\theta$ ED & data ED & data ED & data ED & $\\theta$ ED & data ED & data ED \\\\\n\\midrule\n"
+        + "\n".join(rows) + "\n\\bottomrule\n\\end{tabular}\n")
+
+# 2. CMC against the exact-likelihood NPMLE (the population CMC targets) and exact Bayes
+NPX = [e for e in ["linear_bayes", "growth_snapshot", "growth_tracked", "gene_n2000", "gene_n8000", "gene_n32000",
+                   "bd_ssa", "bd_ssa_tracked", "fish_sim", "tf_sim"] if (e, "npmle") in by]
+if NPX:
+    rows = []
+    for e in NPX:
+        cm = "iter_bins" if (e, "iter_bins") in by else "iter_mlp"
+        ms = [cm, "npmle", "bayes_gauss"]
+        rows.append(e.replace("_", " ") + " & " + " & ".join(_f(_mean(e, m, "theta")) for m in ms) + " & "
+                    + " & ".join(_f(_mean(e, m, "data")) for m in ms) + " \\\\")
+    open(os.path.join(a.out, "compare_npmle.tex"), "w").write(
+        "\\begin{tabular}{lrrrrrr}\n\\toprule\n"
+        " & \\multicolumn{3}{c}{$\\theta$ ED} & \\multicolumn{3}{c}{data ED} \\\\\n"
+        "\\cmidrule(lr){2-4}\\cmidrule(lr){5-7}\n"
+        "example & CMC & NPMLE & Bayes & CMC & NPMLE & Bayes \\\\\n\\midrule\n"
+        + "\n".join(rows) + "\n\\bottomrule\n\\end{tabular}\n")
+
 print(md)

@@ -6,7 +6,9 @@ bd ssa (8$\times$2) & Iterated, MLP & 0.004 & 0.021 & -- & -- & -- & 3.1e+07 & -
  & Iterated, MLP + Bayesian bootstrap & 0.003 & 0.013 & 12/12 & 5/12 & -- & 2.5e+08 & -- & 506.6 \\
  & Bayes, Gaussian mixed effects & 0.002 & 0.002 & 12/12 & 9/12 & -- & 4.1e+08 & -- & 2.7 \\
  & Bayes, Gaussian mixed effects, likelihood-free & 0.074 & 0.006 & 6/12 & 0/12 & -- & 4.8e+06 & 3.8e+08 & 85.8 \\
- & Sourcerer (Vetter et al.) & 0.106 & 0.006 & -- & -- & -- & 2.0e+05 & -- & 58.8 \\ \addlinespace
+ & Sourcerer (Vetter et al.) & 0.106 & 0.006 & -- & -- & -- & 2.0e+05 & -- & 58.8 \\
+ & NPMLE, exact likelihood & 0.013 & 0.003 & -- & -- & -- & -- & -- & 76.2 \\
+ & NPMLE, exact likelihood + Bayesian bootstrap & 0.015 & 0.002 & 11/12 & 0/12 & -- & -- & -- & 89.0 \\ \addlinespace
 feedback ssa (6$\times$2) & Iterated, MLP & 0.742 & 0.028 & -- & -- & 0.48 & 2.3e+07 & -- & 25.7 \\
  & Iterated, MLP + Bayesian bootstrap & 0.807 & 0.040 & 1/18 & 0/6 & 0.50 & 1.8e+08 & -- & 291.0 \\
  & Bayes, Gaussian mixed effects, likelihood-free & 0.688 & 0.007 & 4/18 & 0/6 & 0.45 & 3.6e+06 & 2.7e+08 & 33.0 \\
@@ -14,7 +16,10 @@ feedback ssa (6$\times$2) & Iterated, MLP & 0.742 & 0.028 & -- & -- & 0.48 & 2.3
 bd ssa tracked (1$\times$16) & Iterated, MLP & 0.008 & 0.038 & -- & -- & -- & 9.0e+06 & -- & 33.6 \\
  & Bayes, Gaussian mixed effects & 0.001 & 0.005 & 12/12 & 11/12 & -- & 5.1e+07 & -- & 112.3 \\
  & Bayes, Gaussian mixed effects, likelihood-free & 0.002 & 0.005 & 11/12 & 9/12 & -- & 3.0e+06 & 5.1e+07 & 23.2 \\
- & Sourcerer (Vetter et al.) & 0.031 & 0.009 & -- & -- & -- & 2.0e+05 & -- & 41.8 \\ \addlinespace
+ & Sourcerer (Vetter et al.) & 0.031 & 0.009 & -- & -- & -- & 2.0e+05 & -- & 41.8 \\
+ & NPMLE, exact likelihood & 0.003 & 0.007 & -- & -- & -- & -- & -- & 128.6 \\
+ & NPMLE, exact likelihood + Bayesian bootstrap & 0.003 & 0.005 & 12/12 & 5/12 & -- & -- & -- & 112.7 \\
+ & Amortised multilevel NPE (Habermann et al.) & 0.008 & 0.062 & 12/12 & 11/12 & -- & 2.2e+07 & -- & 240.1 \\ \addlinespace
 feedback ssa tracked (1$\times$12) & Iterated, MLP & 0.264 & 0.019 & -- & -- & 0.45 & 6.7e+06 & -- & 17.5 \\
  & Bayes, Gaussian mixed effects, likelihood-free & 0.209 & 0.010 & 10/18 & 2/6 & 0.42 & 3.0e+06 & 4.8e+07 & 75.1 \\
  & Sourcerer (Vetter et al.) & 0.928 & 0.029 & -- & -- & 1.05 & 2.0e+05 & -- & 76.3 \\
