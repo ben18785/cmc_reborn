@@ -1,4 +1,4 @@
-# Manually triggered: gh workflow run experiments.yml [-f only=REGEX]
+# Manually triggered: gh workflow run experiments.yml [-f only=REGEX] [-f task=ppc]
 # One job per (example, method, seed) from config/config.yaml, each running the
 # Snakefile for its fit; a final job merges the fits and runs `summarise`.
 # The `results` artifact holds results/summary (tables, figures) and all fits.
@@ -12,8 +12,15 @@ on:
       config:
         description: "config file"
         default: "config/config.yaml"
+      task:
+        description: "fit (fits, then summarise) or ppc (posterior predictive checks of committed fits; `only` is a regex on examples)"
+        default: "fit"
+      seed:
+        description: "ppc only: data set (seed) to check"
+        default: "1"
 jobs:
   plan:
+    if: inputs.task == 'fit'
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.mk.outputs.matrix }}
@@ -40,6 +47,7 @@ jobs:
           PY
   fit:
     needs: plan
+    if: inputs.task == 'fit'
     runs-on: ubuntu-latest
     timeout-minutes: 350
     strategy:
@@ -132,7 +140,7 @@ jobs:
             pepsdi-Manifest.toml
   summarise:
     needs: fit
-    if: always()
+    if: always() && inputs.task == 'fit'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -160,3 +168,78 @@ jobs:
           path: |
             results/summary
             results/fits
+  ppc_plan:
+    if: inputs.task == 'ppc'
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.mk.outputs.matrix }}
+      res: ${{ steps.mk.outputs.res }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: mk
+        env:
+          ONLY: ${{ inputs.only }}
+          CFG: ${{ inputs.config }}
+          SEED: ${{ inputs.seed }}
+        run: |
+          pip install pyyaml==6.0.4 >/dev/null
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os, re, yaml
+          c = yaml.safe_load(open(os.environ["CFG"]))
+          res = c.get("results", "results")
+          only, seed = os.environ.get("ONLY") or "", os.environ["SEED"]
+          inc = [dict(example=e) for e in c["examples"] if c["examples"][e].get("methods")
+                 and os.path.exists(f"{res}/data/{e}_seed{seed}.npz") and (not only or re.search(only, e))]
+          print("matrix=" + json.dumps({"include": inc}))
+          print("res=" + res)
+          PY
+  ppc_simulate:
+    needs: ppc_plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix: ${{ fromJson(needs.ppc_plan.outputs.matrix) }}
+    name: ppc-${{ matrix.example }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-lock.txt && pip install -e .
+      - run: |
+          RES=${{ needs.ppc_plan.outputs.res }}
+          snakemake $RES/ppc/${{ matrix.example }}_seed${{ inputs.seed }}.npz --cores 2 \
+            --configfile ${{ inputs.config }} --config config_file=${{ inputs.config }} results=$RES \
+            --allowed-rules ppc --forcerun ppc
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ppc-${{ matrix.example }}
+          path: ${{ needs.ppc_plan.outputs.res }}/ppc/${{ matrix.example }}_seed${{ inputs.seed }}.npz
+  ppc_plot:
+    needs: [ppc_plan, ppc_simulate]
+    if: always() && inputs.task == 'ppc'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-lock.txt && pip install -e .
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ppc-*
+          path: ${{ needs.ppc_plan.outputs.res }}/ppc
+          merge-multiple: true
+      - run: |
+          RES=${{ needs.ppc_plan.outputs.res }}
+          PYTHONPATH=.:workflow/scripts python workflow/scripts/plot_ppc.py --ppc $RES/ppc \
+            --config ${{ inputs.config }} --out $RES/summary/ppc
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ppc
+          path: |
+            ${{ needs.ppc_plan.outputs.res }}/ppc
+            ${{ needs.ppc_plan.outputs.res }}/summary/ppc
