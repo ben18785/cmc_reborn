@@ -298,7 +298,7 @@ rule summarise:
     input:
         fits=FITS,
         data=expand(RES + "/data/{example}_seed{seed}.npz", example=EXAMPLES, seed=SEEDS),
-        code="workflow/scripts/summarise.py",
+        code=["workflow/scripts/summarise.py", "workflow/scripts/method_labels.py"],
     output:
         RES + "/summary/table.md",
         RES + "/summary/table.tex",
@@ -338,3 +338,40 @@ rule summarise:
     shell:
         "PYTHONPATH=. python workflow/scripts/summarise.py --fits {params.res}/fits "
         "--data {params.res}/data --config {params.cfg} --out {params.res}/summary"
+
+
+# posterior predictive checks: each method's fitted population simulated with noise, against the data.
+# Fits and data are read from RES directly (params, not inputs), so this never reruns a fit.
+PPC_SEED = config.get("ppc_seed", 1)
+PPC_EXAMPLES = [e for e in EXAMPLES if C["examples"][e].get("methods")]
+
+
+rule ppc:
+    input:
+        code=CODE + ["workflow/scripts/ppc.py"],
+    output:
+        RES + "/ppc/{example}_seed{seed}.npz",
+    params:
+        cfg=CFG,
+        data=lambda w: RES + f"/data/{w.example}_seed{w.seed}.npz",
+        fits=lambda w: RES + f"/fits/{w.example}",
+    conda:
+        ENV
+    shell:
+        "PYTHONPATH=. python workflow/scripts/ppc.py --example {wildcards.example} --seed {wildcards.seed} "
+        "--config {params.cfg} --data {params.data} --fits {params.fits} --out {output}"
+
+
+rule ppc_plots:
+    input:
+        ppc=expand(RES + "/ppc/{example}_seed{seed}.npz", example=PPC_EXAMPLES, seed=[PPC_SEED]),
+        code=["workflow/scripts/plot_ppc.py", "workflow/scripts/method_labels.py"],
+    output:
+        directory(RES + "/summary/ppc"),
+    params:
+        cfg=CFG,
+    conda:
+        ENV
+    shell:
+        "PYTHONPATH=.:workflow/scripts python workflow/scripts/plot_ppc.py --ppc {RES}/ppc --config {params.cfg} "
+        "--out {output}"
