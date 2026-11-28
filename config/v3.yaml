@@ -245,7 +245,9 @@ methods:
     n_particles_pilot: 200
     n_pilot_max: 5000
     n_main_max: 50000
-    minutes: 210           # budget of the Julia run (timing, pilot, tuning, main) within the 350-min job
+    minutes: 300           # budget of the Julia run (timing, pilot, tuning, main) within the 350-min job
+    n_times_run_filter: 20 # filter runs per particle count when tuning (theirs 100); at 50, tuning took 4-5 h
+    n_main_min: 100        # the main run shrinks to the time left after tuning, never past `minutes`
     n_keep: 50
   pepsdi_smoke:            # environment/API check only (not reported)
     kind: external
