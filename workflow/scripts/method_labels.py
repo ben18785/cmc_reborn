@@ -35,9 +35,10 @@ for k in ("bayes_gauss_nre_big", "bayes_gauss_nre_big1", "bayes_dpm_nre_big", "b
 LABEL.update({"neb": "Neural empirical Bayes (Vandegar et al.)", "npmle": "NPMLE, exact likelihood",
               "npmle_bb": "NPMLE, exact likelihood + Bayesian bootstrap", "pmetrics_npag": "NPAG (Pmetrics)",
               "mlnpe": "Amortised multilevel NPE (Habermann et al.)",
-              "mlnpe_ssa": "Amortised multilevel NPE (Habermann et al.)", "pepsdi": "PEPSDI (Persson et al.)"})
+              "mlnpe_ssa": "Amortised multilevel NPE (Habermann et al.)",
+              "mlnpe_sub": "Amortised multilevel NPE (Habermann et al.), varied training size", "pepsdi": "PEPSDI (Persson et al.)"})
 COLOR.update({"neb": "#762a83", "npmle": "#000000", "npmle_bb": "#666666", "pmetrics_npag": "#01665e",
-              "mlnpe": "#d6604d", "mlnpe_ssa": "#d6604d", "pepsdi": "#8c510a"})
+              "mlnpe": "#d6604d", "mlnpe_ssa": "#d6604d", "mlnpe_sub": "#f4a582", "pepsdi": "#8c510a"})
 
 
 def complete(methods):

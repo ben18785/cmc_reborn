@@ -143,7 +143,7 @@ examples:
     n_cells: 2565
     holdout: []
     n_sweeps: 150
-    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1, arruda, sourcerer, nlme_saem, nlme_focei, neb, npmle, npmle_bb, pmetrics_npag, mlnpe, pmetrics_smoke, mlnpe_smoke]
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1, arruda, sourcerer, nlme_saem, nlme_focei, neb, npmle, npmle_bb, pmetrics_npag, mlnpe, mlnpe_sub, pmetrics_smoke, mlnpe_smoke]
   tf_egfp:
     kind: transfection
     experiment: transfection
@@ -152,7 +152,7 @@ examples:
     n_cells: 2565
     holdout: []
     n_sweeps: 150
-    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1, arruda, sourcerer, nlme_saem, nlme_focei, neb, npmle, npmle_bb, pmetrics_npag, mlnpe]
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1, arruda, sourcerer, nlme_saem, nlme_focei, neb, npmle, npmle_bb, pmetrics_npag, mlnpe, mlnpe_sub]
   tf_d2egfp:
     kind: transfection
     experiment: transfection
@@ -161,7 +161,7 @@ examples:
     n_cells: 2923
     holdout: []
     n_sweeps: 150
-    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1, arruda, sourcerer, nlme_saem, nlme_focei, neb, npmle, npmle_bb, pmetrics_npag, mlnpe]
+    methods: [iter_mlp, bb_mlp, bayes_gauss, bayes_gauss_nre_big1, arruda, sourcerer, nlme_saem, nlme_focei, neb, npmle, npmle_bb, pmetrics_npag, mlnpe, mlnpe_sub]
   tf_ssa_sim:
     kind: transfection_ssa
     experiment: transfection
@@ -213,6 +213,17 @@ methods:
     max_batch_cells: 65536
     n_local: 64
     n_keep: 50
+  mlnpe_sub:               # the same, with training data sets of log-uniform size on [128, J_obs] (most steps cheap; full size still seen) and all 4 runner cores
+    kind: external
+    tool: mlnpe
+    train_minutes: 240
+    sim_minutes: 80
+    batch_size: 32
+    max_batch_cells: 65536
+    n_local: 64
+    n_keep: 50
+    j_min: 128
+    threads: 4
   mlnpe_ssa:               # the same for the Gillespie examples: 80 min simulation bank + 160 min training
     kind: external
     tool: mlnpe

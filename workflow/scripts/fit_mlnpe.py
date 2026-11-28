@@ -44,7 +44,9 @@ Deviations, with reasons:
   1. Many groups. The paper trains on 10-30 groups per data set and applies the networks only within
      the range seen in training. We have ~2000-2900 cells, so training data sets have J ~ DiscreteUniform
      (J_obs / 2, J_obs) cells (one J per batch, every data set in the batch a random subset of J of its
-     cells), which covers the observed J. The set transformer pools by attention, which cannot see J,
+     cells), which covers the observed J. With `j_min` set, J ~ log-uniform on [j_min, J_obs]
+     instead: a step costs about linearly in J, so most steps are cheap and several times more fit
+     in the budget, while data sets of the observed size are still seen (no extrapolation in J). The set transformer pools by attention, which cannot see J,
      so log J is appended to the global summary (as BayesFlow 2.1's experimental MultilevelEstimator
      does with log1p of the group counts), letting the posterior width scale with J.
   2. The local term of the loss is the mean over cells (as BayesFlow 2.1's MultilevelEstimator
@@ -103,6 +105,7 @@ batch_size = int(meth.get("batch_size", 32))
 max_batch_cells = int(meth.get("max_batch_cells", 65536))
 n_local = int(meth.get("n_local", 64))
 j_lo_frac = float(meth.get("j_lo_frac", 0.5))
+j_min = meth.get("j_min")  # if set: training J ~ log-uniform on [j_min, J_obs] (see deviation 1)
 max_cells = meth.get("max_cells")  # optional subset of the observed cells (None: all)
 lr0 = float(meth.get("learning_rate", 5e-4))
 n_keep = int(meth.get("n_keep", 50))
@@ -135,9 +138,10 @@ n_dropped = int((~ok).sum())
 if max_cells and len(Y) > int(max_cells):
     Y = Y[rng.choice(len(Y), int(max_cells), replace=False)]
 J_HI = len(Y)
-J_LO = max(2, int(round(j_lo_frac * J_HI)))
+J_LO = max(2, min(J_HI, int(j_min))) if j_min else max(2, int(round(j_lo_frac * J_HI)))
+J_DIST = "loguniform" if j_min else "uniform"
 print(f"{model.name}: {J_HI} cells x {T} times x {N_OBS} species ({n_dropped} dropped as non-finite); "
-      f"training J in [{J_LO}, {J_HI}]")
+      f"training J in [{J_LO}, {J_HI}], {J_DIST}")
 
 # ---- hyperprior on tau = (mu, log s) and the box the cells' theta are clipped to
 if model.lower is not None:
@@ -311,7 +315,10 @@ n_online = [0]  # cells simulated by the online training steps
 
 
 def make_batch(r):
-    J = int(r.integers(J_LO, J_HI + 1))
+    if J_DIST == "loguniform":  # most steps cheap, but full-size data sets still seen
+        J = min(J_HI, int(math.exp(r.uniform(math.log(J_LO), math.log(J_HI + 1)))))
+    else:
+        J = int(r.integers(J_LO, J_HI + 1))
     if STOCHASTIC:
         bi = r.choice(len(bank_g), B, replace=False)
         cells = r.choice(J_HI, J, replace=False)
@@ -437,7 +444,7 @@ print("posterior mean of mu:", np.round(mu.mean(0), 3), "\nposterior mean of s:"
 seconds = time.time() - t_start
 np.savez_compressed(a.out, pop_draws=pops.astype(np.float32), seconds=seconds, t_sim=t_sim, t_train=t_train,
                     t_infer=t_inf, n_train_sims=n_sims, n_train_datasets=n_train_datasets, n_cells=J_HI,
-                    n_cells_dropped=n_dropped, n_times=T, steps=step, batch_size=B, n_local=K, j_lo=J_LO, j_hi=J_HI,
+                    n_cells_dropped=n_dropped, n_times=T, steps=step, batch_size=B, n_local=K, j_lo=J_LO, j_hi=J_HI, j_dist=J_DIST,
                     mu_draws=mu, sd_draws=s, train_loss=np.array(hist, np.float32), val_loss=np.array(vals, np.float32),
                     val_cov50=cov50, val_cov90=cov90, val_rmse=rmse, offline=STOCHASTIC,
                     hyper_mean=G_MEAN, hyper_sd=G_SD, box_lo=LO, box_hi=HI)
