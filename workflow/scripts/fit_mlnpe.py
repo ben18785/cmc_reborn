@@ -186,30 +186,37 @@ if STOCHASTIC:  # offline: a bank of data sets of J_HI cells, simulated for sim_
     nd = max(1, 8000 // J_HI)  # data sets per task: ~8000 cells per vectorised Gillespie call
     deadline = t_start + 60 * sim_minutes
     ctx = mp.get_context("fork")
-    parts, pending, k = [], [], 0
+    # preallocated bank (pages are committed only as they fill): concatenating a list of chunks
+    # would hold the bank twice, which took one runner past its memory
+    n_cap = max(nd, cap // nd * nd)
+    bank_g = np.empty((n_cap, 2 * P), np.float32)
+    bank_th = np.empty((n_cap, J_HI, P), np.float32)
+    bank_y = np.empty((n_cap, J_HI, T, N_OBS), np.float32)
+    pending, k, n_b, n_bad = [], 0, 0, 0
     with ctx.Pool(workers) as pool:
         while True:
-            while len(pending) < 2 * workers and time.time() < deadline and k * nd < cap:
+            while len(pending) < 2 * workers and time.time() < deadline and (k + 1) * nd <= n_cap:
                 pending.append(pool.apply_async(_sim_chunk, ((10 ** 7 * a.seed + k, nd),)))
                 k += 1
             if not pending:
                 break
-            parts.append(pending.pop(0).get())
-            if len(parts) % 50 == 0:
-                print(f"bank: {len(parts) * nd} data sets, {(time.time() - t_start) / 60:.1f} min")
-    bank_g = np.concatenate([p_[0] for p_ in parts])
-    bank_th = np.concatenate([p_[1] for p_ in parts])
-    bank_y = np.concatenate([p_[2] for p_ in parts])
-    del parts
-    good = np.all(np.isfinite(bank_y.reshape(len(bank_y), -1)), axis=1)
-    bank_g, bank_th, bank_y = bank_g[good], bank_th[good], bank_y[good]
+            g_, th_, y_ = pending.pop(0).get()
+            ok = np.all(np.isfinite(y_.reshape(len(y_), -1)), axis=1)
+            m_ = int(ok.sum())
+            n_bad += len(ok) - m_
+            bank_g[n_b:n_b + m_], bank_th[n_b:n_b + m_], bank_y[n_b:n_b + m_] = g_[ok], th_[ok], y_[ok]
+            n_b += m_
+            del g_, th_, y_
+            if (k % 50) == 0:
+                print(f"bank: {n_b} data sets, {(time.time() - t_start) / 60:.1f} min", flush=True)
+    bank_g, bank_th, bank_y = bank_g[:n_b], bank_th[:n_b], bank_y[:n_b]
     n_sims += int(k * nd * J_HI)
     nv = min(n_val, max(1, len(bank_g) // 10))
     val_g, val_th, val_y = bank_g[-nv:], bank_th[-nv:], bank_y[-nv:]
     bank_g, bank_th, bank_y = bank_g[:-nv], bank_th[:-nv], bank_y[:-nv]
     pil_th, pil_y = bank_th[:256], bank_y[:256]
     print(f"bank: {len(bank_g)} training and {nv} validation data sets of {J_HI} cells "
-          f"({(~good).sum()} non-finite dropped), {(time.time() - t_start) / 60:.1f} min")
+          f"({n_bad} non-finite dropped), {(time.time() - t_start) / 60:.1f} min")
 else:  # online: a pilot for the standardisation and a fixed validation set
     J_pil = min(J_HI, 256)
     pil_th, pil_y = simulate(draw_global(256, rng), J_pil, rng)
